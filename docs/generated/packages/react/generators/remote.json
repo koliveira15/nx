@@ -2,7 +2,7 @@
   "name": "remote",
   "factory": "./src/generators/remote/remote#remoteGeneratorInternal",
   "schema": {
-    "$schema": "http://json-schema.org/schema",
+    "$schema": "https://json-schema.org/schema",
     "$id": "GeneratorReactRemote",
     "cli": "nx",
     "title": "Generate Module Federation Setup for React Remote App",
@@ -28,6 +28,12 @@
         "type": "string",
         "enum": ["as-provided", "derived"]
       },
+      "dynamic": {
+        "type": "boolean",
+        "description": "Should the host application use dynamic federation?",
+        "default": false,
+        "x-priority": "internal"
+      },
       "style": {
         "description": "The file extension to be used for style files.",
         "type": "string",
@@ -40,11 +46,15 @@
             { "value": "css", "label": "CSS" },
             {
               "value": "scss",
-              "label": "SASS(.scss)       [ http://sass-lang.com                     ]"
+              "label": "SASS(.scss)       [ https://sass-lang.com                     ]"
             },
             {
               "value": "less",
-              "label": "LESS              [ http://lesscss.org                       ]"
+              "label": "LESS              [ https://lesscss.org                       ]"
+            },
+            {
+              "value": "tailwind",
+              "label": "tailwind [ https://tailwindcss.com/            ]"
             },
             {
               "value": "styled-components",
@@ -57,10 +67,6 @@
             {
               "value": "styled-jsx",
               "label": "styled-jsx        [ https://www.npmjs.com/package/styled-jsx ]"
-            },
-            {
-              "value": "styl",
-              "label": "DEPRECATD: Stylus(.styl) [ http://stylus-lang.com            ]"
             },
             { "value": "none", "label": "None" }
           ]
@@ -84,7 +90,7 @@
         "x-priority": "internal"
       },
       "skipNxJson": {
-        "description": "Skip updating workspace.json with default options based on values provided to this app (e.g. babel, style).",
+        "description": "Skip updating nx.json with default options based on values provided to this app (e.g. babel, style).",
         "type": "boolean",
         "default": false,
         "x-priority": "internal"
@@ -97,9 +103,10 @@
       },
       "e2eTestRunner": {
         "type": "string",
-        "enum": ["cypress", "none"],
-        "description": "Test runner to use for end to end (e2e) tests.",
-        "default": "cypress"
+        "enum": ["playwright", "cypress", "none"],
+        "description": "Test runner to use for end to end (E2E) tests.",
+        "x-prompt": "Which E2E test runner would you like to use?",
+        "default": "playwright"
       },
       "tags": {
         "type": "string",
@@ -158,6 +165,17 @@
         "description": "Whether to configure SSR for the host application",
         "type": "boolean",
         "default": false
+      },
+      "typescriptConfiguration": {
+        "type": "boolean",
+        "description": "Whether the module federation configuration and webpack configuration files should use TS. When --js is used, this flag is ignored.",
+        "default": true
+      },
+      "skipPackageJson": {
+        "description": "Do not add dependencies to `package.json`.",
+        "type": "boolean",
+        "default": false,
+        "x-priority": "internal"
       }
     },
     "required": ["name"],

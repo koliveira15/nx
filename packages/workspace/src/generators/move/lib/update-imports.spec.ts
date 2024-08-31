@@ -1,3 +1,5 @@
+import 'nx/src/internal-testing-utils/mock-project-graph';
+
 import {
   readJson,
   readProjectConfiguration,
@@ -6,8 +8,8 @@ import {
 } from '@nx/devkit';
 import { createTreeWithEmptyWorkspace } from '@nx/devkit/testing';
 import { Schema } from '../schema';
-import { updateImports } from './update-imports';
 import { normalizeSchema } from './normalize-schema';
+import { updateImports } from './update-imports';
 
 // nx-ignore-next-line
 const { libraryGenerator } = require('@nx/js');
@@ -21,8 +23,10 @@ describe('updateImports', () => {
 
     schema = {
       projectName: 'my-source',
+      newProjectName: 'my-destination',
       destination: 'my-destination',
       updateImportPath: true,
+      projectNameAndRootFormat: 'as-provided',
     };
   });
 
@@ -33,14 +37,17 @@ describe('updateImports', () => {
     await libraryGenerator(tree, {
       name: 'my-destination',
       config: 'project',
+      projectNameAndRootFormat: 'as-provided',
     });
     await libraryGenerator(tree, {
       name: 'my-source',
+      projectNameAndRootFormat: 'as-provided',
     });
     await libraryGenerator(tree, {
       name: 'my-importer',
+      projectNameAndRootFormat: 'as-provided',
     });
-    const importerFilePath = 'libs/my-importer/src/importer.ts';
+    const importerFilePath = 'my-importer/src/importer.ts';
     tree.write(
       importerFilePath,
       `
@@ -53,7 +60,7 @@ describe('updateImports', () => {
 
     updateImports(
       tree,
-      normalizeSchema(tree, schema, projectConfig),
+      await normalizeSchema(tree, schema, projectConfig),
       projectConfig
     );
 
@@ -66,12 +73,19 @@ describe('updateImports', () => {
    * be updated.
    */
   it('should not update import paths when they contain a partial match', async () => {
-    await libraryGenerator(tree, { name: 'table' });
-    await libraryGenerator(tree, { name: 'tab' });
+    await libraryGenerator(tree, {
+      name: 'table',
+      projectNameAndRootFormat: 'as-provided',
+    });
+    await libraryGenerator(tree, {
+      name: 'tab',
+      projectNameAndRootFormat: 'as-provided',
+    });
     await libraryGenerator(tree, {
       name: 'my-importer',
+      projectNameAndRootFormat: 'as-provided',
     });
-    const importerFilePath = 'libs/my-importer/src/importer.ts';
+    const importerFilePath = 'my-importer/src/importer.ts';
     tree.write(
       importerFilePath,
       `
@@ -92,7 +106,7 @@ describe('updateImports', () => {
         importPath: '@proj/tabs',
         updateImportPath: true,
         newProjectName: 'tabs',
-        relativeToRootDestination: 'libs/tabs',
+        relativeToRootDestination: 'tabs',
       },
       projectConfig
     );
@@ -107,12 +121,19 @@ describe('updateImports', () => {
   });
 
   it('should correctly update deep imports', async () => {
-    await libraryGenerator(tree, { name: 'table' });
-    await libraryGenerator(tree, { name: 'tab' });
+    await libraryGenerator(tree, {
+      name: 'table',
+      projectNameAndRootFormat: 'as-provided',
+    });
+    await libraryGenerator(tree, {
+      name: 'tab',
+      projectNameAndRootFormat: 'as-provided',
+    });
     await libraryGenerator(tree, {
       name: 'my-importer',
+      projectNameAndRootFormat: 'as-provided',
     });
-    const importerFilePath = 'libs/my-importer/src/importer.ts';
+    const importerFilePath = 'my-importer/src/importer.ts';
     tree.write(
       importerFilePath,
       `
@@ -133,7 +154,7 @@ describe('updateImports', () => {
         importPath: '@proj/tabs',
         updateImportPath: true,
         newProjectName: 'tabs',
-        relativeToRootDestination: 'libs/tabs',
+        relativeToRootDestination: 'tabs',
       },
       projectConfig
     );
@@ -148,12 +169,19 @@ describe('updateImports', () => {
   });
 
   it('should update dynamic imports', async () => {
-    await libraryGenerator(tree, { name: 'table' });
-    await libraryGenerator(tree, { name: 'tab' });
+    await libraryGenerator(tree, {
+      name: 'table',
+      projectNameAndRootFormat: 'as-provided',
+    });
+    await libraryGenerator(tree, {
+      name: 'tab',
+      projectNameAndRootFormat: 'as-provided',
+    });
     await libraryGenerator(tree, {
       name: 'my-importer',
+      projectNameAndRootFormat: 'as-provided',
     });
-    const importerFilePath = 'libs/my-importer/src/importer.ts';
+    const importerFilePath = 'my-importer/src/importer.ts';
     tree.write(
       importerFilePath,
       `
@@ -173,7 +201,7 @@ describe('updateImports', () => {
         importPath: '@proj/tabs',
         updateImportPath: true,
         newProjectName: 'tabs',
-        relativeToRootDestination: 'libs/tabs',
+        relativeToRootDestination: 'tabs',
       },
       projectConfig
     );
@@ -193,13 +221,89 @@ describe('updateImports', () => {
     expect(tree.read(importerFilePath, 'utf-8')).toMatchSnapshot();
   });
 
-  it('should update require imports', async () => {
-    await libraryGenerator(tree, { name: 'table' });
-    await libraryGenerator(tree, { name: 'tab' });
+  it('should update imports and reexports', async () => {
+    await libraryGenerator(tree, {
+      name: 'my-destination',
+      config: 'project',
+      projectNameAndRootFormat: 'as-provided',
+    });
+    await libraryGenerator(tree, {
+      name: 'my-source',
+      projectNameAndRootFormat: 'as-provided',
+    });
     await libraryGenerator(tree, {
       name: 'my-importer',
+      projectNameAndRootFormat: 'as-provided',
     });
-    const importerFilePath = 'libs/my-importer/src/importer.ts';
+    const importerFilePath = 'my-importer/src/importer.ts';
+    tree.write(
+      importerFilePath,
+      `
+        import { MyClass } from '@proj/my-source';
+        
+        export { MyClass };
+        export { MyOtherClass } from '@proj/my-source';
+        
+        export class MyExtendedClass extends MyClass {};
+      `
+    );
+    const projectConfig = readProjectConfiguration(tree, 'my-source');
+
+    updateImports(
+      tree,
+      await normalizeSchema(tree, schema, projectConfig),
+      projectConfig
+    );
+
+    expect(tree.read(importerFilePath, 'utf-8')).toMatchSnapshot();
+  });
+
+  it('should not throw error on export list', async () => {
+    await libraryGenerator(tree, {
+      name: 'my-destination',
+      config: 'project',
+      projectNameAndRootFormat: 'as-provided',
+    });
+    await libraryGenerator(tree, {
+      name: 'my-source',
+      projectNameAndRootFormat: 'as-provided',
+    });
+    await libraryGenerator(tree, {
+      name: 'my-importer',
+      projectNameAndRootFormat: 'as-provided',
+    });
+    const importerFilePath = 'my-importer/src/importer.ts';
+    tree.write(
+      importerFilePath,
+      `
+        import { MyClass } from '@proj/my-source';
+
+        export { MyClass };
+      `
+    );
+    const projectConfig = readProjectConfiguration(tree, 'my-source');
+
+    const normalizedSchema = await normalizeSchema(tree, schema, projectConfig);
+
+    expect(() =>
+      updateImports(tree, normalizedSchema, projectConfig)
+    ).not.toThrow();
+  });
+
+  it('should update require imports', async () => {
+    await libraryGenerator(tree, {
+      name: 'table',
+      projectNameAndRootFormat: 'as-provided',
+    });
+    await libraryGenerator(tree, {
+      name: 'tab',
+      projectNameAndRootFormat: 'as-provided',
+    });
+    await libraryGenerator(tree, {
+      name: 'my-importer',
+      projectNameAndRootFormat: 'as-provided',
+    });
+    const importerFilePath = 'my-importer/src/importer.ts';
     tree.write(
       importerFilePath,
       `
@@ -219,7 +323,7 @@ describe('updateImports', () => {
         importPath: '@proj/tabs',
         updateImportPath: true,
         newProjectName: 'tabs',
-        relativeToRootDestination: 'libs/tabs',
+        relativeToRootDestination: 'tabs',
       },
       projectConfig
     );
@@ -244,14 +348,17 @@ describe('updateImports', () => {
     // source and destination to make sure that the workspace has libraries with those names.
     await libraryGenerator(tree, {
       name: 'my-destination',
+      projectNameAndRootFormat: 'as-provided',
     });
     await libraryGenerator(tree, {
       name: 'my-source',
+      projectNameAndRootFormat: 'as-provided',
     });
     await libraryGenerator(tree, {
       name: 'my-importer',
+      projectNameAndRootFormat: 'as-provided',
     });
-    const importerFilePath = 'libs/my-importer/src/importer.ts';
+    const importerFilePath = 'my-importer/src/importer.ts';
     tree.write(
       importerFilePath,
       `import { MyClass } from '@proj/my-source';
@@ -263,7 +370,7 @@ export MyExtendedClass extends MyClass {};`
 
     updateImports(
       tree,
-      normalizeSchema(
+      await normalizeSchema(
         tree,
         {
           ...schema,
@@ -282,31 +389,33 @@ export MyExtendedClass extends MyClass {};`
   it('should update project ref in the root tsconfig.base.json', async () => {
     await libraryGenerator(tree, {
       name: 'my-source',
+      projectNameAndRootFormat: 'as-provided',
     });
     const projectConfig = readProjectConfiguration(tree, 'my-source');
 
     updateImports(
       tree,
-      normalizeSchema(tree, schema, projectConfig),
+      await normalizeSchema(tree, schema, projectConfig),
       projectConfig
     );
 
     const tsConfig = readJson(tree, '/tsconfig.base.json');
     expect(tsConfig.compilerOptions.paths).toEqual({
-      '@proj/my-destination': ['libs/my-destination/src/index.ts'],
+      '@proj/my-destination': ['my-destination/src/index.ts'],
     });
   });
 
   it('should update project ref in the root tsconfig.base.json for secondary entry points', async () => {
     await libraryGenerator(tree, {
       name: 'my-source',
+      projectNameAndRootFormat: 'as-provided',
     });
     updateJson(tree, '/tsconfig.base.json', (json) => {
       json.compilerOptions.paths['@proj/my-source/testing'] = [
-        'libs/my-source/testing/src/index.ts',
+        'my-source/testing/src/index.ts',
       ];
       json.compilerOptions.paths['@proj/different-alias'] = [
-        'libs/my-source/some-path/src/index.ts',
+        'my-source/some-path/src/index.ts',
       ];
       return json;
     });
@@ -314,17 +423,15 @@ export MyExtendedClass extends MyClass {};`
 
     updateImports(
       tree,
-      normalizeSchema(tree, schema, projectConfig),
+      await normalizeSchema(tree, schema, projectConfig),
       projectConfig
     );
 
     const tsConfig = readJson(tree, '/tsconfig.base.json');
     expect(tsConfig.compilerOptions.paths).toEqual({
-      '@proj/my-destination': ['libs/my-destination/src/index.ts'],
-      '@proj/my-destination/testing': [
-        'libs/my-destination/testing/src/index.ts',
-      ],
-      '@proj/different-alias': ['libs/my-destination/some-path/src/index.ts'],
+      '@proj/my-destination': ['my-destination/src/index.ts'],
+      '@proj/my-destination/testing': ['my-destination/testing/src/index.ts'],
+      '@proj/different-alias': ['my-destination/some-path/src/index.ts'],
     });
   });
 
@@ -332,12 +439,13 @@ export MyExtendedClass extends MyClass {};`
     tree.delete('libs');
     await libraryGenerator(tree, {
       name: 'my-source',
+      projectNameAndRootFormat: 'as-provided',
     });
     const projectConfig = readProjectConfiguration(tree, 'my-source');
 
     updateImports(
       tree,
-      normalizeSchema(tree, schema, projectConfig),
+      await normalizeSchema(tree, schema, projectConfig),
       projectConfig
     );
 
@@ -351,18 +459,19 @@ export MyExtendedClass extends MyClass {};`
     tree.rename('tsconfig.base.json', 'tsconfig.json');
     await libraryGenerator(tree, {
       name: 'my-source',
+      projectNameAndRootFormat: 'as-provided',
     });
     const projectConfig = readProjectConfiguration(tree, 'my-source');
 
     updateImports(
       tree,
-      normalizeSchema(tree, schema, projectConfig),
+      await normalizeSchema(tree, schema, projectConfig),
       projectConfig
     );
 
     const tsConfig = readJson(tree, '/tsconfig.json');
     expect(tsConfig.compilerOptions.paths).toEqual({
-      '@proj/my-destination': ['libs/my-destination/src/index.ts'],
+      '@proj/my-destination': ['my-destination/src/index.ts'],
     });
   });
 
@@ -374,30 +483,32 @@ export MyExtendedClass extends MyClass {};`
     );
     await libraryGenerator(tree, {
       name: 'my-source',
+      projectNameAndRootFormat: 'as-provided',
     });
     const projectConfig = readProjectConfiguration(tree, 'my-source');
 
     updateImports(
       tree,
-      normalizeSchema(tree, schema, projectConfig),
+      await normalizeSchema(tree, schema, projectConfig),
       projectConfig
     );
 
     const tsConfig = readJson(tree, '/tsconfig.json');
     expect(tsConfig.compilerOptions.paths).toEqual({
-      '@proj/my-destination': ['libs/my-destination/src/index.ts'],
+      '@proj/my-destination': ['my-destination/src/index.ts'],
     });
   });
 
   it('should only update the project ref paths in the tsconfig file when --updateImportPath=false', async () => {
     await libraryGenerator(tree, {
       name: 'my-source',
+      projectNameAndRootFormat: 'as-provided',
     });
     const projectConfig = readProjectConfiguration(tree, 'my-source');
 
     updateImports(
       tree,
-      normalizeSchema(
+      await normalizeSchema(
         tree,
         {
           ...schema,
@@ -411,7 +522,44 @@ export MyExtendedClass extends MyClass {};`
 
     const tsConfig = readJson(tree, '/tsconfig.base.json');
     expect(tsConfig.compilerOptions.paths).toEqual({
-      '@proj/my-source': ['libs/my-destination/src/index.ts'],
+      '@proj/my-source': ['my-destination/src/index.ts'],
+    });
+  });
+
+  it("should update project ref in the root tsconfig file if it contains a secondary entry point for Next.js's server", async () => {
+    await libraryGenerator(tree, {
+      name: 'my-source',
+      projectNameAndRootFormat: 'as-provided',
+    });
+
+    tree.write('my-source/src/server.ts', '');
+
+    updateJson(tree, '/tsconfig.base.json', (json) => {
+      json.compilerOptions.paths['@proj/my-source/server'] = [
+        'my-source/src/server.ts',
+      ];
+      return json;
+    });
+
+    const projectConfig = readProjectConfiguration(tree, 'my-source');
+    updateImports(
+      tree,
+      await normalizeSchema(
+        tree,
+        {
+          ...schema,
+          updateImportPath: false,
+        },
+        projectConfig
+      ),
+
+      projectConfig
+    );
+
+    const tsConfig = readJson(tree, '/tsconfig.base.json');
+    expect(tsConfig.compilerOptions.paths).toEqual({
+      '@proj/my-source': ['my-destination/src/index.ts'],
+      '@proj/my-source/server': ['my-destination/src/server.ts'],
     });
   });
 });

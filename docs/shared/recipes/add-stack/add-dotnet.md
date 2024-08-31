@@ -4,17 +4,16 @@
 
 Because we are using an Nx plugin for .NET, all the features of Nx are available.
 
-{% pill url="/core-features/run-tasks" %}✅ Run Tasks{% /pill %}
-{% pill url="/core-features/cache-task-results" %}✅ Cache Task Results{% /pill %}
-{% pill url="/core-features/remote-cache" %}✅ Share Your Cache{% /pill %}
-{% pill url="/core-features/explore-graph" %}✅ Explore the Graph{% /pill %}
-{% pill url="/core-features/distribute-task-execution" %}✅ Distribute Task Execution{% /pill %}
-{% pill url="/core-features/integrate-with-editors" %}✅ Integrate with Editors{% /pill %}
-{% pill url="/core-features/automate-updating-dependencies" %}✅ Automate Updating Nx{% /pill %}
-{% pill url="/core-features/enforce-module-boundaries" %}✅ Enforce Module Boundaries{% /pill %}
-{% pill url="/core-features/plugin-features/use-task-executors" %}✅ Use Task Executors{% /pill %}
-{% pill url="/core-features/plugin-features/use-code-generators" %}✅ Use Code Generators{% /pill %}
-{% pill url="/core-features/automate-updating-dependencies" %}✅ Automate Updating Framework Dependencies{% /pill %}
+{% pill url="/features/run-tasks" %}✅ Run Tasks{% /pill %}
+{% pill url="/features/cache-task-results" %}✅ Cache Task Results{% /pill %}
+{% pill url="/ci/features/remote-cache" %}✅ Share Your Cache{% /pill %}
+{% pill url="/features/explore-graph" %}✅ Explore the Graph{% /pill %}
+{% pill url="/ci/features/distribute-task-execution" %}✅ Distribute Task Execution{% /pill %}
+{% pill url="/getting-started/editor-setup" %}✅ Integrate with Editors{% /pill %}
+{% pill url="/features/automate-updating-dependencies" %}✅ Automate Updating Nx{% /pill %}
+{% pill url="/features/enforce-module-boundaries" %}✅ Enforce Module Boundaries{% /pill %}
+{% pill url="/features/generate-code" %}✅ Use Code Generators{% /pill %}
+{% pill url="/features/automate-updating-dependencies" %}✅ Automate Updating Framework Dependencies{% /pill %}
 
 ## Install the @nx-dotnet/core Plugin
 
@@ -26,14 +25,29 @@ Make sure you have .NET installed on your machine. Consult the [.NET docs for mo
 {%tab label="npm"%}
 
 ```shell
-npm i --save-dev @nx-dotnet/core
+npm add -D @nx-dotnet/core
 ```
 
 {% /tab %}
 {%tab label="yarn"%}
 
 ```shell
-yarn add --dev @nx-dotnet/core
+yarn add -D @nx-dotnet/core
+```
+
+{% /tab %}
+{%tab label="pnpm"%}
+
+```shell
+pnpm add -D @nx-dotnet/core
+```
+
+{% /tab %}
+
+{% tab label="bun" %}
+
+```shell
+bun add -D @nx-dotnet/core
 ```
 
 {% /tab %}
@@ -105,8 +119,12 @@ This generates the following files:
 
 Use the `app` generator to create a new .NET app. For this demo, use the `nx` path naming convention and the `web-api` project template.
 
+{% callout type="note" title="Directory Flag Behavior Changes" %}
+The command below uses the `as-provided` directory flag behavior, which is the default in Nx 16.8.0. If you're on an earlier version of Nx or using the `derived` option, omit the `--directory` flag. See the [as-provided vs. derived documentation](/deprecated/as-provided-vs-derived) for more details.
+{% /callout %}
+
 ```shell
-nx g @nx-dotnet/core:app my-api --test-template nunit --language C#
+nx g @nx-dotnet/core:app my-api --directory=apps/my-api --test-template nunit --language C#
 ```
 
 Serve the API by running
@@ -119,8 +137,12 @@ nx serve my-api
 
 To create a new library, run the library generator. Use the `classlib` template.
 
+{% callout type="note" title="Directory Flag Behavior Changes" %}
+The command below uses the `as-provided` directory flag behavior, which is the default in Nx 16.8.0. If you're on an earlier version of Nx or using the `derived` option, omit the `--directory` flag. See the [as-provided vs. derived documentation](/deprecated/as-provided-vs-derived) for more details.
+{% /callout %}
+
 ```shell
-nx g @nx-dotnet/core:lib dotnet-lib
+nx g @nx-dotnet/core:lib dotnet-lib --directory=libs/dotnet-lib
 ```
 
 We also want to add a project reference from `my-api` to `dotnet-lib` using the `project-reference` generator:

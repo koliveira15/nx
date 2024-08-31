@@ -29,6 +29,15 @@ export function createApplicationFiles(host: Tree, options: NormalizedSchema) {
     options.outputPath,
     '.next/types/**/*.ts'
   );
+
+  // scope tsconfig to the project directory so that it doesn't include other projects/libs
+  const rootPath = options.rootProject
+    ? options.src
+      ? 'src/'
+      : options.appDir
+      ? 'app/'
+      : 'pages/'
+    : '';
   const templateVariables = {
     ...names(options.name),
     ...options,
@@ -36,6 +45,7 @@ export function createApplicationFiles(host: Tree, options: NormalizedSchema) {
     tmpl: '',
     offsetFromRoot,
     layoutTypeSrcPath,
+    rootPath,
     layoutTypeDistPath,
     rootTsConfigPath: getRelativePathToRootTsConfig(
       host,
@@ -45,11 +55,12 @@ export function createApplicationFiles(host: Tree, options: NormalizedSchema) {
     styleContent: createStyleRules(),
     pageStyleContent: `.page {}`,
 
-    stylesExt:
-      options.style === 'less' || options.style === 'styl'
-        ? options.style
-        : 'css',
+    stylesExt: options.style === 'less' ? options.style : 'css',
   };
+
+  const generatedAppFilePath = options.src
+    ? join(options.appProjectRoot, 'src')
+    : options.appProjectRoot;
 
   generateFiles(
     host,
@@ -62,38 +73,39 @@ export function createApplicationFiles(host: Tree, options: NormalizedSchema) {
     generateFiles(
       host,
       join(__dirname, '../files/app'),
-      join(options.appProjectRoot, 'app'),
+      join(generatedAppFilePath, 'app'),
       templateVariables
     );
 
-    // RSC is not possible to unit test without extra helpers for data fetching. Leaving it to the user to figure out.
-    host.delete(
-      joinPathFragments(
-        options.appProjectRoot,
-        'specs',
-        `index.spec.${options.js ? 'jsx' : 'tsx'}`
-      )
-    );
+    if (options.unitTestRunner === 'none') {
+      host.delete(
+        joinPathFragments(
+          options.appProjectRoot,
+          'specs',
+          `index.spec.${options.js ? 'jsx' : 'tsx'}`
+        )
+      );
+    }
 
     if (options.style === 'styled-components') {
       generateFiles(
         host,
         join(__dirname, '../files/app-styled-components'),
-        join(options.appProjectRoot, 'app'),
+        join(generatedAppFilePath, 'app'),
         templateVariables
       );
     } else if (options.style === 'styled-jsx') {
       generateFiles(
         host,
         join(__dirname, '../files/app-styled-jsx'),
-        join(options.appProjectRoot, 'app'),
+        join(generatedAppFilePath, 'app'),
         templateVariables
       );
     } else {
       generateFiles(
         host,
         join(__dirname, '../files/app-default-layout'),
-        join(options.appProjectRoot, 'app'),
+        join(generatedAppFilePath, 'app'),
         templateVariables
       );
     }
@@ -101,7 +113,7 @@ export function createApplicationFiles(host: Tree, options: NormalizedSchema) {
     generateFiles(
       host,
       join(__dirname, '../files/pages'),
-      join(options.appProjectRoot, 'pages'),
+      join(generatedAppFilePath, 'pages'),
       templateVariables
     );
   }
@@ -132,7 +144,6 @@ export function createApplicationFiles(host: Tree, options: NormalizedSchema) {
           ...new Set([
             ...(updatedJson.exclude || []),
             ...(appJSON.exclude || []),
-            '**e2e/**/*',
             `dist/${options.projectName}/**/*`,
           ]),
         ],
@@ -153,18 +164,18 @@ export function createApplicationFiles(host: Tree, options: NormalizedSchema) {
     host.delete(`${options.appProjectRoot}/.babelrc`);
   }
 
-  if (options.styledModule) {
+  if (options.styledModule || options.style === 'tailwind') {
     if (options.appDir) {
-      host.delete(`${options.appProjectRoot}/app/page.module.${options.style}`);
+      host.delete(`${generatedAppFilePath}/app/page.module.${options.style}`);
     } else {
       host.delete(
-        `${options.appProjectRoot}/pages/${options.fileName}.module.${options.style}`
+        `${generatedAppFilePath}/pages/${options.fileName}.module.${options.style}`
       );
     }
   }
 
   if (options.style !== 'styled-components') {
-    host.delete(`${options.appProjectRoot}/pages/_document.tsx`);
+    host.delete(`${generatedAppFilePath}/pages/_document.tsx`);
   }
 
   if (options.js) {

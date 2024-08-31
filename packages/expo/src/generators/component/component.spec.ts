@@ -1,6 +1,8 @@
+import 'nx/src/internal-testing-utils/mock-project-graph';
+
 import { logger, Tree } from '@nx/devkit';
 import { createTreeWithEmptyWorkspace } from '@nx/devkit/testing';
-import { Linter } from '@nx/linter';
+import { Linter } from '@nx/eslint';
 import expoApplicationGenerator from '../application/application';
 import expoLibraryGenerator from '../library/library';
 import { expoComponentGenerator } from './component';
@@ -14,7 +16,7 @@ describe('component', () => {
 
   beforeEach(async () => {
     projectName = 'my-lib';
-    appTree = createTreeWithEmptyWorkspace({ layout: 'apps-libs' });
+    appTree = createTreeWithEmptyWorkspace();
     appTree.write('.gitignore', '');
     defaultSchema = {
       name: 'hello',
@@ -35,6 +37,7 @@ describe('component', () => {
       skipFormat: false,
       js: true,
       unitTestRunner: 'jest',
+      projectNameAndRootFormat: 'as-provided',
     });
     await expoLibraryGenerator(appTree, {
       name: projectName,
@@ -44,6 +47,7 @@ describe('component', () => {
       unitTestRunner: 'jest',
       strict: true,
       js: false,
+      projectNameAndRootFormat: 'as-provided',
     });
     jest.spyOn(logger, 'warn').mockImplementation(() => {});
     jest.spyOn(logger, 'debug').mockImplementation(() => {});
@@ -56,10 +60,8 @@ describe('component', () => {
   it('should generate files', async () => {
     await expoComponentGenerator(appTree, defaultSchema);
 
-    expect(appTree.exists('libs/my-lib/src/lib/hello/hello.tsx')).toBeTruthy();
-    expect(
-      appTree.exists('libs/my-lib/src/lib/hello/hello.spec.tsx')
-    ).toBeTruthy();
+    expect(appTree.exists('my-lib/src/lib/hello/hello.tsx')).toBeTruthy();
+    expect(appTree.exists('my-lib/src/lib/hello/hello.spec.tsx')).toBeTruthy();
   });
 
   it('should generate files for an app', async () => {
@@ -68,10 +70,8 @@ describe('component', () => {
       project: 'my-app',
     });
 
-    expect(appTree.exists('apps/my-app/src/app/hello/hello.tsx')).toBeTruthy();
-    expect(
-      appTree.exists('apps/my-app/src/app/hello/hello.spec.tsx')
-    ).toBeTruthy();
+    expect(appTree.exists('my-app/src/app/hello/hello.tsx')).toBeTruthy();
+    expect(appTree.exists('my-app/src/app/hello/hello.spec.tsx')).toBeTruthy();
   });
 
   describe('--export', () => {
@@ -81,7 +81,7 @@ describe('component', () => {
         export: true,
       });
 
-      const indexContent = appTree.read('libs/my-lib/src/index.ts', 'utf-8');
+      const indexContent = appTree.read('my-lib/src/index.ts', 'utf-8');
 
       expect(indexContent).toMatch(/lib\/hello/);
     });
@@ -93,7 +93,7 @@ describe('component', () => {
         export: true,
       });
 
-      const indexContent = appTree.read('libs/my-lib/src/index.ts', 'utf-8');
+      const indexContent = appTree.read('my-lib/src/index.ts', 'utf-8');
 
       expect(indexContent).not.toMatch(/lib\/hello/);
     });
@@ -105,11 +105,9 @@ describe('component', () => {
         ...defaultSchema,
         pascalCaseFiles: true,
       });
+      expect(appTree.exists('my-lib/src/lib/hello/Hello.tsx')).toBeTruthy();
       expect(
-        appTree.exists('libs/my-lib/src/lib/hello/Hello.tsx')
-      ).toBeTruthy();
-      expect(
-        appTree.exists('libs/my-lib/src/lib/hello/Hello.spec.tsx')
+        appTree.exists('my-lib/src/lib/hello/Hello.spec.tsx')
       ).toBeTruthy();
     });
   });
@@ -121,7 +119,7 @@ describe('component', () => {
         directory: 'components',
       });
 
-      expect(appTree.exists('/libs/my-lib/src/components/hello/hello.tsx'));
+      expect(appTree.exists('my-lib/src/components/hello/hello.tsx'));
     });
 
     it('should create with nested directories', async () => {
@@ -131,9 +129,7 @@ describe('component', () => {
         directory: 'lib/foo',
       });
 
-      expect(
-        appTree.exists('/libs/my-lib/src/lib/foo/hello-world/hello-world.tsx')
-      );
+      expect(appTree.exists('my-lib/src/lib/foo/hello-world/hello-world.tsx'));
     });
   });
 
@@ -144,7 +140,7 @@ describe('component', () => {
         flat: true,
       });
 
-      expect(appTree.exists('/libs/my-lib/src/lib/hello.tsx'));
+      expect(appTree.exists('my-lib/src/lib/hello.tsx'));
     });
     it('should work with custom directory path', async () => {
       await expoComponentGenerator(appTree, {
@@ -153,7 +149,7 @@ describe('component', () => {
         directory: 'components',
       });
 
-      expect(appTree.exists('/libs/my-lib/src/components/hello.tsx'));
+      expect(appTree.exists('my-lib/src/components/hello.tsx'));
     });
   });
 });

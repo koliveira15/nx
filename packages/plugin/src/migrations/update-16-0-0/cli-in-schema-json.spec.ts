@@ -1,3 +1,5 @@
+import 'nx/src/internal-testing-utils/mock-project-graph';
+
 import {
   ExecutorsJson,
   GeneratorsJson,
@@ -10,7 +12,7 @@ import {
   writeJson,
 } from '@nx/devkit';
 import { createTreeWithEmptyWorkspace } from '@nx/devkit/testing';
-import { Linter } from '@nx/linter';
+import { Linter } from '@nx/eslint';
 import { assertRunsAgainstNxRepo } from '@nx/devkit/internal-testing-utils';
 import { PackageJson } from 'nx/src/utils/package-json';
 import executorGenerator from '../../generators/executor/executor';
@@ -19,6 +21,16 @@ import pluginGenerator from '../../generators/plugin/plugin';
 import { updateCliPropsForPlugins } from './cli-in-schema-json';
 
 describe('updateCliPropsForPlugins', () => {
+  let originalEnv: string;
+  beforeEach(() => {
+    originalEnv = process.env.NX_ADD_PLUGINS;
+    process.env.NX_ADD_PLUGINS = 'false';
+  });
+
+  afterAll(() => {
+    process.env.NX_ADD_PLUGINS = originalEnv;
+  });
+
   it('should move non-nx generators to schematics for migrations.json', async () => {
     const tree = createTreeWithEmptyWorkspace();
     const { root } = await createPlugin(tree);

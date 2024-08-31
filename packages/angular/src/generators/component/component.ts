@@ -1,35 +1,37 @@
 import type { Tree } from '@nx/devkit';
-import {
-  formatFiles,
-  generateFiles,
-  joinPathFragments,
-  names,
-} from '@nx/devkit';
+import { formatFiles, generateFiles, joinPathFragments } from '@nx/devkit';
 import { addToNgModule } from '../utils';
+import { getInstalledAngularVersionInfo } from '../utils/version-utils';
 import {
   exportComponentInEntryPoint,
   findModuleFromOptions,
   normalizeOptions,
-  validateOptions,
+  setGeneratorDefaults,
 } from './lib';
 import type { Schema } from './schema';
 
 export async function componentGenerator(tree: Tree, rawOptions: Schema) {
-  validateOptions(tree, rawOptions);
-  const options = normalizeOptions(tree, rawOptions);
+  await componentGeneratorInternal(tree, {
+    nameAndDirectoryFormat: 'derived',
+    ...rawOptions,
+  });
+}
 
-  const componentNames = names(options.name);
-  const typeNames = names(options.type);
+export async function componentGeneratorInternal(
+  tree: Tree,
+  rawOptions: Schema
+) {
+  const options = await normalizeOptions(tree, rawOptions);
 
+  const { major: angularMajorVersion } = getInstalledAngularVersionInfo(tree);
   generateFiles(
     tree,
     joinPathFragments(__dirname, 'files'),
     options.directory,
     {
-      fileName: componentNames.fileName,
-      className: componentNames.className,
-      type: typeNames.fileName,
-      typeClassName: typeNames.className,
+      name: options.name,
+      fileName: options.fileName,
+      symbolName: options.symbolName,
       style: options.style,
       inlineStyle: options.inlineStyle,
       inlineTemplate: options.inlineTemplate,
@@ -39,6 +41,7 @@ export async function componentGenerator(tree: Tree, rawOptions: Schema) {
       viewEncapsulation: options.viewEncapsulation,
       displayBlock: options.displayBlock,
       selector: options.selector,
+      angularMajorVersion,
       tpl: '',
     }
   );
@@ -46,7 +49,7 @@ export async function componentGenerator(tree: Tree, rawOptions: Schema) {
   if (options.skipTests) {
     const pathToSpecFile = joinPathFragments(
       options.directory,
-      `${componentNames.fileName}.${typeNames.fileName}.spec.ts`
+      `${options.fileName}.spec.ts`
     );
 
     tree.delete(pathToSpecFile);
@@ -55,7 +58,7 @@ export async function componentGenerator(tree: Tree, rawOptions: Schema) {
   if (options.inlineTemplate) {
     const pathToTemplateFile = joinPathFragments(
       options.directory,
-      `${componentNames.fileName}.${typeNames.fileName}.html`
+      `${options.fileName}.html`
     );
 
     tree.delete(pathToTemplateFile);
@@ -64,7 +67,7 @@ export async function componentGenerator(tree: Tree, rawOptions: Schema) {
   if (options.style === 'none' || options.inlineStyle) {
     const pathToStyleFile = joinPathFragments(
       options.directory,
-      `${componentNames.fileName}.${typeNames.fileName}.${options.style}`
+      `${options.fileName}.${options.style}`
     );
 
     tree.delete(pathToStyleFile);
@@ -78,18 +81,19 @@ export async function componentGenerator(tree: Tree, rawOptions: Schema) {
     );
     addToNgModule(
       tree,
-      options.path,
+      options.directory,
       modulePath,
-      componentNames.fileName,
-      `${componentNames.className}${typeNames.className}`,
-      `${componentNames.fileName}.${typeNames.fileName}`,
+      options.name,
+      options.symbolName,
+      options.fileName,
       'declarations',
-      options.flat,
+      true,
       options.export
     );
   }
 
   exportComponentInEntryPoint(tree, options);
+  setGeneratorDefaults(tree, options);
 
   if (!options.skipFormat) {
     await formatFiles(tree);

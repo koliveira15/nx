@@ -1,23 +1,22 @@
-# Local Executors
+# Write a Simple Executor
 
-Creating Executors for your workspace standardizes scripts that are run during your development/building/deploying tasks in order to provide guidance in the terminal with `--help` and when invoking with [Nx Console](/core-features/integrate-with-editors)
+Creating Executors for your workspace standardizes scripts that are run during your development/building/deploying tasks in order to provide guidance in the terminal with `--help` and when invoking with [Nx Console](/getting-started/editor-setup)
 
 This guide shows you how to create, run, and customize executors within your Nx workspace. The examples use the trivial use-case of an `echo` command.
 
 ## Creating an executor
 
-If you don't already have a local plugin, use Nx to generate one:
+If you don't already have a plugin, use Nx to generate one:
 
-```shell
-# replace `latest` with the version that matches your Nx version
-npm install @nx/plugin@latest
-nx g @nx/plugin:plugin my-plugin
+```shell {% skipRescope=true %}
+nx add @nx/plugin
+nx g @nx/plugin:plugin my-plugin --directory tools/my-plugin
 ```
 
 Use the Nx CLI to generate the initial files needed for your executor.
 
 ```shell
-nx generate @nx/plugin:executor echo --project=my-plugin
+nx generate @nx/plugin:executor echo --directory=tools/my-plugin/src/executors/echo
 ```
 
 After the command is finished, the executor is created in the plugin `executors` folder.
@@ -25,7 +24,7 @@ After the command is finished, the executor is created in the plugin `executors`
 ```text
 happynrwl/
 ├── apps/
-├── libs/
+├── tools/
 │   ├── my-plugin
 │   │   ├── src
 │   │   │   ├── executors
@@ -45,7 +44,7 @@ This file describes the options being sent to the executor (very similar to the 
 
 ```json
 {
-  "$schema": "http://json-schema.org/schema",
+  "$schema": "https://json-schema.org/schema",
   "type": "object",
   "properties": {
     "textToEcho": {
@@ -95,19 +94,11 @@ export default async function echoExecutor(
 
 Our last step is to add this executor to a given project’s `targets` object in your project's `project.json` file:
 
-```jsonc {% fileName="project.json" %}
+```jsonc {% fileName="project.json" highlightLines=["5-10"] %}
 {
   //...
   "targets": {
-    "build": {
-      // ...
-    },
-    "serve": {
-      // ...
-    },
-    "lint": {
-      // ,,,
-    },
+    // ...
     "echo": {
       "executor": "@my-org/my-plugin:echo",
       "options": {

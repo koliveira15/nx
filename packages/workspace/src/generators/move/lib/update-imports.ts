@@ -1,26 +1,26 @@
 import {
-  applyChangesToString,
   ChangeType,
-  getProjects,
-  getWorkspaceLayout,
-  joinPathFragments,
   ProjectConfiguration,
   StringChange,
   Tree,
+  applyChangesToString,
+  getProjects,
+  getWorkspaceLayout,
+  joinPathFragments,
+  readJson,
   visitNotIgnoredFiles,
   writeJson,
-  readJson,
 } from '@nx/devkit';
+import { relative } from 'path';
 import type * as ts from 'typescript';
+import { getImportPath } from '../../../utilities/get-import-path';
 import {
-  getRootTsConfigPathInTree,
   findNodes,
+  getRootTsConfigPathInTree,
 } from '../../../utilities/ts-config';
+import { ensureTypescript } from '../../../utilities/typescript';
 import { NormalizedSchema } from '../schema';
 import { normalizePathSlashes } from './utils';
-import { relative } from 'path';
-import { ensureTypescript } from '../../../utilities/typescript';
-import { getImportPath } from '../../../utilities/get-import-path';
 
 let tsModule: typeof import('typescript');
 
@@ -34,8 +34,7 @@ export function updateImports(
   schema: NormalizedSchema,
   project: ProjectConfiguration
 ) {
-  if (project.projectType === 'application') {
-    // These shouldn't be imported anywhere?
+  if (project.projectType !== 'library') {
     return;
   }
 
@@ -48,6 +47,7 @@ export function updateImports(
   let tsConfig: any;
   let mainEntryPointImportPath: string;
   let secondaryEntryPointImportPaths: string[];
+  let serverEntryPointImportPath: string;
   if (tree.exists(tsConfigPath)) {
     tsConfig = readJson(tree, tsConfigPath);
     const sourceRoot =
@@ -69,6 +69,19 @@ export function updateImports(
           !x.startsWith(ensureTrailingSlash(sourceRoot))
       )
     );
+
+    // Next.js libs have a custom path for the server we need to update that as well
+    // example "paths": { @acme/lib/server : ['libs/lib/src/server.ts'] }
+    serverEntryPointImportPath = Object.keys(
+      tsConfig.compilerOptions?.paths ?? {}
+    ).find((path) =>
+      tsConfig.compilerOptions.paths[path].some(
+        (x) =>
+          x.startsWith(ensureTrailingSlash(sourceRoot)) &&
+          x.includes('server') &&
+          path.endsWith('server')
+      )
+    );
   }
 
   mainEntryPointImportPath ??= normalizePathSlashes(
@@ -88,11 +101,26 @@ export function updateImports(
       // if the import path doesn't start with the main entry point import path,
       // it's a custom import path we don't know how to update the name, we keep
       // it as-is, but we'll update the path it points to
-      to: p.startsWith(mainEntryPointImportPath)
-        ? p.replace(mainEntryPointImportPath, schema.importPath)
-        : null,
+      to:
+        schema.importPath && p.startsWith(mainEntryPointImportPath)
+          ? p.replace(mainEntryPointImportPath, schema.importPath)
+          : null,
     })),
   ];
+
+  if (
+    serverEntryPointImportPath &&
+    schema.importPath &&
+    serverEntryPointImportPath.startsWith(mainEntryPointImportPath)
+  ) {
+    projectRefs.push({
+      from: serverEntryPointImportPath,
+      to: serverEntryPointImportPath.replace(
+        mainEntryPointImportPath,
+        schema.importPath
+      ),
+    });
+  }
 
   for (const projectRef of projectRefs) {
     if (schema.updateImportPath && projectRef.to) {
@@ -187,15 +215,15 @@ function updateImportDeclarations(
   if (!tsModule) {
     tsModule = ensureTypescript();
   }
-  const importDecls = findNodes(
-    sourceFile,
-    tsModule.SyntaxKind.ImportDeclaration
-  ) as ts.ImportDeclaration[];
+  const importDecls = findNodes(sourceFile, [
+    tsModule.SyntaxKind.ImportDeclaration,
+    tsModule.SyntaxKind.ExportDeclaration,
+  ]) as ts.ImportDeclaration[];
 
   const changes: StringChange[] = [];
 
   for (const { moduleSpecifier } of importDecls) {
-    if (tsModule.isStringLiteral(moduleSpecifier)) {
+    if (moduleSpecifier && tsModule.isStringLiteral(moduleSpecifier)) {
       changes.push(...updateModuleSpecifier(moduleSpecifier, from, to));
     }
   }

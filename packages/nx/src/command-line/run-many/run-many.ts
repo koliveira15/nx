@@ -25,7 +25,10 @@ export async function runMany(
     string,
     (TargetDependencyConfig | string)[]
   > = {},
-  extraOptions = { excludeTaskDependencies: false, loadDotEnvFiles: true } as {
+  extraOptions = {
+    excludeTaskDependencies: args.excludeTaskDependencies,
+    loadDotEnvFiles: process.env.NX_LOAD_DOT_ENV_FILES !== 'false',
+  } as {
     excludeTaskDependencies: boolean;
     loadDotEnvFiles: boolean;
   }
@@ -54,7 +57,7 @@ export async function runMany(
     const projectNames = projects.map((t) => t.name);
     return await generateGraph(
       {
-        watch: false,
+        watch: true,
         open: true,
         view: 'tasks',
         all: nxArgs.all,
@@ -65,7 +68,7 @@ export async function runMany(
       projectNames
     );
   } else {
-    await runCommand(
+    const status = await runCommand(
       projects,
       projectGraph,
       { nxJson },
@@ -75,6 +78,7 @@ export async function runMany(
       extraTargetDependencies,
       extraOptions
     );
+    process.exit(status);
   }
 }
 

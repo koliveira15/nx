@@ -115,7 +115,7 @@ export function Content({
   };
 
   return (
-    <div data-document="main" className="min-w-0 flex-auto pt-8 pb-24 lg:pb-16">
+    <div data-document="main" className="min-w-0 flex-auto pb-24 pt-8 lg:pb-16">
       <div className="mb-8 flex w-full items-center space-x-2">
         <div className="w-full flex-grow space-x-4">
           <div
@@ -125,13 +125,14 @@ export function Content({
           >
             {schemaViewModel.type}
           </div>
-          <a
+          <Link
             className="relative mx-4 inline-flex rounded-md border border-green-100 bg-green-50 px-4 py-2 text-xs font-medium text-green-600 dark:border-green-900 dark:bg-green-900/30 dark:text-green-400"
             href="/recipes/other/rescope"
             title="Nx 16 package name changes"
+            prefetch={false}
           >
             Rescope @nrwl to @nx
-          </a>
+          </Link>
           {schemaViewModel.deprecated && (
             <div
               aria-hidden="true"
@@ -159,7 +160,7 @@ export function Content({
           >
             {schemaViewModel.packageName}
           </Link>
-          <a
+          <Link
             href={schemaViewModel.schemaGithubUrl}
             target="_blank"
             rel="noreferrer"
@@ -177,7 +178,7 @@ export function Content({
               ></path>
             </svg>
             See schema
-          </a>
+          </Link>
         </div>
       </div>
 

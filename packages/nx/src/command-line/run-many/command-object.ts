@@ -5,7 +5,9 @@ import {
   withOutputStyleOption,
   withTargetAndConfigurationOption,
   withOverrides,
+  withBatch,
 } from '../yargs-utils/shared-options';
+import { handleErrors } from '../../utils/params';
 
 export const yargsRunManyCommand: CommandModule = {
   command: 'run-many',
@@ -13,10 +15,19 @@ export const yargsRunManyCommand: CommandModule = {
   builder: (yargs) =>
     linkToNxDevAndExamples(
       withRunManyOptions(
-        withOutputStyleOption(withTargetAndConfigurationOption(yargs))
+        withOutputStyleOption(
+          withTargetAndConfigurationOption(withBatch(yargs))
+        )
       ),
       'run-many'
     ),
-  handler: async (args) =>
-    (await import('./run-many')).runMany(withOverrides(args)),
+  handler: async (args) => {
+    const exitCode = await handleErrors(
+      (args.verbose as boolean) ?? process.env.NX_VERBOSE_LOGGING === 'true',
+      async () => {
+        await import('./run-many').then((m) => m.runMany(withOverrides(args)));
+      }
+    );
+    process.exit(exitCode);
+  },
 };

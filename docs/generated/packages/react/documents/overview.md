@@ -6,19 +6,46 @@ It provides:
 - Library build support for publishing packages to npm or other registries.
 - Utilities for automatic workspace refactoring.
 
-## Setting Up React
+## Setting Up @nx/react
+
+### Generating a new Workspace
 
 To create a new workspace with React, run `npx create-nx-workspace@latest --preset=react-standalone`.
 
-To add the React plugin to an existing workspace, run one of the following:
+{% callout type="note" title="React Tutorials" %}
+For a full tutorial experience, follow the [React Standalone Tutorial](/getting-started/tutorials/react-standalone-tutorial) or the [React Monorepo Tutorial](/getting-started/tutorials/react-monorepo-tutorial)
+{% /callout %}
+
+### Installation
+
+{% callout type="note" title="Keep Nx Package Versions In Sync" %}
+Make sure to install the `@nx/react` version that matches the version of `nx` in your repository. If the version numbers get out of sync, you can encounter some difficult to debug errors. You can [fix Nx version mismatches with this recipe](/recipes/tips-n-tricks/keep-nx-versions-in-sync).
+{% /callout %}
+
+In any Nx workspace, you can install `@nx/react` by running the following command:
+
+{% tabs %}
+{% tab label="Nx 18+" %}
+
+```shell {% skipRescope=true %}
+nx add @nx/react
+```
+
+This will install the correct version of `@nx/react`.
+
+{% /tab %}
+{% tab label="Nx < 18" %}
+
+Install the `@nx/react` package with your package manager.
 
 ```shell
-# For npm users
-npm install -D @nx/react
-
-# For yarn users
-yarn add -D @nx/react
+npm add -D @nx/react
 ```
+
+{% /tab %}
+{% /tabs %}
+
+## Using the @nx/react Plugin
 
 ### Creating Applications and Libraries
 
@@ -43,7 +70,7 @@ nx g @nx/react:lib my-new-lib \
 --importPath=@myorg/my-new-lib
 ```
 
-Read more about [building and publishing libraries here](/concepts/more-concepts/buildable-and-publishable-libraries).
+Read more about [building and publishing libraries here](/concepts/buildable-and-publishable-libraries).
 
 ### Creating Components
 
@@ -120,6 +147,8 @@ The library in `dist` is publishable to npm or a private registry.
 
 ## More Documentation
 
-- [Using Cypress](/packages/cypress)
-- [Using Jest](/packages/jest)
+- [React Standalone Tutorial](/getting-started/tutorials/react-standalone-tutorial)
+- [React Monorepo Tutorial](/getting-started/tutorials/react-monorepo-tutorial)
+- [Using Cypress](/nx-api/cypress)
+- [Using Jest](/nx-api/jest)
 - [Using Storybook](/recipes/storybook/overview-react)

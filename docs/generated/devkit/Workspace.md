@@ -17,19 +17,30 @@ use ProjectsConfigurations or NxJsonConfiguration
 ### Properties
 
 - [affected](../../devkit/documents/Workspace#affected): NxAffectedConfig
+- [cacheDirectory](../../devkit/documents/Workspace#cachedirectory): string
 - [cli](../../devkit/documents/Workspace#cli): Object
+- [defaultBase](../../devkit/documents/Workspace#defaultbase): string
 - [defaultProject](../../devkit/documents/Workspace#defaultproject): string
 - [extends](../../devkit/documents/Workspace#extends): string
 - [generators](../../devkit/documents/Workspace#generators): Object
-- [implicitDependencies](../../devkit/documents/Workspace#implicitdependencies): ImplicitDependencyEntry&lt;string[] | &quot;\*&quot;&gt;
+- [implicitDependencies](../../devkit/documents/Workspace#implicitdependencies): ImplicitDependencyEntry<string[] | "\*">
 - [installation](../../devkit/documents/Workspace#installation): NxInstallationConfiguration
 - [namedInputs](../../devkit/documents/Workspace#namedinputs): Object
-- [npmScope](../../devkit/documents/Workspace#npmscope): string
-- [plugins](../../devkit/documents/Workspace#plugins): string[]
-- [pluginsConfig](../../devkit/documents/Workspace#pluginsconfig): Record&lt;string, unknown&gt;
-- [projects](../../devkit/documents/Workspace#projects): Record&lt;string, ProjectConfiguration&gt;
+- [neverConnectToCloud](../../devkit/documents/Workspace#neverconnecttocloud): boolean
+- [nxCloudAccessToken](../../devkit/documents/Workspace#nxcloudaccesstoken): string
+- [nxCloudEncryptionKey](../../devkit/documents/Workspace#nxcloudencryptionkey): string
+- [nxCloudId](../../devkit/documents/Workspace#nxcloudid): string
+- [nxCloudUrl](../../devkit/documents/Workspace#nxcloudurl): string
+- [parallel](../../devkit/documents/Workspace#parallel): number
+- [plugins](../../devkit/documents/Workspace#plugins): PluginConfiguration[]
+- [pluginsConfig](../../devkit/documents/Workspace#pluginsconfig): Record<string, Record<string, unknown>>
+- [projects](../../devkit/documents/Workspace#projects): Record<string, ProjectConfiguration>
+- [release](../../devkit/documents/Workspace#release): NxReleaseConfiguration
+- [sync](../../devkit/documents/Workspace#sync): NxSyncConfiguration
 - [targetDefaults](../../devkit/documents/Workspace#targetdefaults): TargetDefaults
 - [tasksRunnerOptions](../../devkit/documents/Workspace#tasksrunneroptions): Object
+- [useDaemonProcess](../../devkit/documents/Workspace#usedaemonprocess): boolean
+- [useInferencePlugins](../../devkit/documents/Workspace#useinferenceplugins): boolean
 - [version](../../devkit/documents/Workspace#version): number
 - [workspaceLayout](../../devkit/documents/Workspace#workspacelayout): Object
 
@@ -41,9 +52,25 @@ use ProjectsConfigurations or NxJsonConfiguration
 
 Default options for `nx affected`
 
+**`Deprecated`**
+
+use [defaultBase](../../devkit/documents/NxJsonConfiguration#defaultbase) instead. For more information see https://nx.dev/deprecated/affected-config#affected-config
+
 #### Inherited from
 
 [NxJsonConfiguration](../../devkit/documents/NxJsonConfiguration).[affected](../../devkit/documents/NxJsonConfiguration#affected)
+
+---
+
+### cacheDirectory
+
+• `Optional` **cacheDirectory**: `string`
+
+Changes the directory used by Nx to store its cache.
+
+#### Inherited from
+
+[NxJsonConfiguration](../../devkit/documents/NxJsonConfiguration).[cacheDirectory](../../devkit/documents/NxJsonConfiguration#cachedirectory)
 
 ---
 
@@ -55,15 +82,26 @@ Default generator collection. It is used when no collection is provided.
 
 #### Type declaration
 
-| Name                  | Type                                                      | Description                                                            |
-| :-------------------- | :-------------------------------------------------------- | :--------------------------------------------------------------------- |
-| `defaultCollection?`  | `string`                                                  | **`Deprecated`** - defaultCollection is deprecated and will be removed |
-| `defaultProjectName?` | `string`                                                  | -                                                                      |
-| `packageManager?`     | [`PackageManager`](../../devkit/documents/PackageManager) | -                                                                      |
+| Name                  | Type                                                      |
+| :-------------------- | :-------------------------------------------------------- |
+| `defaultProjectName?` | `string`                                                  |
+| `packageManager?`     | [`PackageManager`](../../devkit/documents/PackageManager) |
 
 #### Inherited from
 
 [NxJsonConfiguration](../../devkit/documents/NxJsonConfiguration).[cli](../../devkit/documents/NxJsonConfiguration#cli)
+
+---
+
+### defaultBase
+
+• `Optional` **defaultBase**: `string`
+
+Default value for --base used by `nx affected` and `nx format`.
+
+#### Inherited from
+
+[NxJsonConfiguration](../../devkit/documents/NxJsonConfiguration).[defaultBase](../../devkit/documents/NxJsonConfiguration#defaultbase)
 
 ---
 
@@ -114,7 +152,7 @@ Example:
 
 #### Index signature
 
-▪ [collectionName: `string`]: { `[generatorName: string]`: `any`; }
+▪ [collectionName: `string`]: \{ `[generatorName: string]`: `any`; }
 
 #### Inherited from
 
@@ -124,13 +162,13 @@ Example:
 
 ### implicitDependencies
 
-• `Optional` **implicitDependencies**: [`ImplicitDependencyEntry`](../../devkit/documents/ImplicitDependencyEntry)<`string`[] \| `"*"`\>
+• `Optional` **implicitDependencies**: [`ImplicitDependencyEntry`](../../devkit/documents/ImplicitDependencyEntry)\<`string`[] \| `"*"`\>
 
 Map of files to projects that implicitly depend on them
 
 **`Deprecated`**
 
-use [namedInputs](../../devkit/documents/Workspace#namedinputs) instead. For more information see https://nx.dev/deprecated/global-implicit-dependencies#global-implicit-dependencies
+use [namedInputs](../../devkit/documents/NxJsonConfiguration#namedinputs) instead. For more information see https://nx.dev/deprecated/global-implicit-dependencies#global-implicit-dependencies
 
 #### Inherited from
 
@@ -168,24 +206,84 @@ Named inputs targets can refer to reduce duplication
 
 ---
 
-### npmScope
+### neverConnectToCloud
 
-• `Optional` **npmScope**: `string`
+• `Optional` **neverConnectToCloud**: `boolean`
 
-**`Deprecated`**
-
-This is inferred from the package.json in the workspace root. Please use getNpmScope instead.
-NPM Scope that the workspace uses
+Set this to false to disable connection to Nx Cloud
 
 #### Inherited from
 
-[NxJsonConfiguration](../../devkit/documents/NxJsonConfiguration).[npmScope](../../devkit/documents/NxJsonConfiguration#npmscope)
+[NxJsonConfiguration](../../devkit/documents/NxJsonConfiguration).[neverConnectToCloud](../../devkit/documents/NxJsonConfiguration#neverconnecttocloud)
+
+---
+
+### nxCloudAccessToken
+
+• `Optional` **nxCloudAccessToken**: `string`
+
+If specified Nx will use nx-cloud by default with the given token.
+To use a different runner that accepts an access token, define it in [tasksRunnerOptions](../../devkit/documents/NxJsonConfiguration#tasksrunneroptions)
+
+#### Inherited from
+
+[NxJsonConfiguration](../../devkit/documents/NxJsonConfiguration).[nxCloudAccessToken](../../devkit/documents/NxJsonConfiguration#nxcloudaccesstoken)
+
+---
+
+### nxCloudEncryptionKey
+
+• `Optional` **nxCloudEncryptionKey**: `string`
+
+Specifies the encryption key used to encrypt artifacts data before sending it to nx cloud.
+
+#### Inherited from
+
+[NxJsonConfiguration](../../devkit/documents/NxJsonConfiguration).[nxCloudEncryptionKey](../../devkit/documents/NxJsonConfiguration#nxcloudencryptionkey)
+
+---
+
+### nxCloudId
+
+• `Optional` **nxCloudId**: `string`
+
+If specified Nx will use nx-cloud by default with the given cloud id.
+To use a different runner that accepts a cloud id, define it in [tasksRunnerOptions](../../devkit/documents/NxJsonConfiguration#tasksrunneroptions)
+
+#### Inherited from
+
+[NxJsonConfiguration](../../devkit/documents/NxJsonConfiguration).[nxCloudId](../../devkit/documents/NxJsonConfiguration#nxcloudid)
+
+---
+
+### nxCloudUrl
+
+• `Optional` **nxCloudUrl**: `string`
+
+Specifies the url pointing to an instance of nx cloud. Used for remote
+caching and displaying run links.
+
+#### Inherited from
+
+[NxJsonConfiguration](../../devkit/documents/NxJsonConfiguration).[nxCloudUrl](../../devkit/documents/NxJsonConfiguration#nxcloudurl)
+
+---
+
+### parallel
+
+• `Optional` **parallel**: `number`
+
+Specifies how many tasks can be run in parallel.
+
+#### Inherited from
+
+[NxJsonConfiguration](../../devkit/documents/NxJsonConfiguration).[parallel](../../devkit/documents/NxJsonConfiguration#parallel)
 
 ---
 
 ### plugins
 
-• `Optional` **plugins**: `string`[]
+• `Optional` **plugins**: [`PluginConfiguration`](../../devkit/documents/PluginConfiguration)[]
 
 Plugins for extending the project graph
 
@@ -197,7 +295,7 @@ Plugins for extending the project graph
 
 ### pluginsConfig
 
-• `Optional` **pluginsConfig**: `Record`<`string`, `unknown`\>
+• `Optional` **pluginsConfig**: `Record`\<`string`, `Record`\<`string`, `unknown`\>\>
 
 Configuration for Nx Plugins
 
@@ -209,7 +307,7 @@ Configuration for Nx Plugins
 
 ### projects
 
-• **projects**: `Record`<`string`, [`ProjectConfiguration`](../../devkit/documents/ProjectConfiguration)\>
+• **projects**: `Record`\<`string`, [`ProjectConfiguration`](../../devkit/documents/ProjectConfiguration)\>
 
 Projects' projects
 
@@ -219,9 +317,33 @@ Projects' projects
 
 ---
 
+### release
+
+• `Optional` **release**: `NxReleaseConfiguration`
+
+Configuration for `nx release` (versioning and publishing of applications and libraries)
+
+#### Inherited from
+
+[NxJsonConfiguration](../../devkit/documents/NxJsonConfiguration).[release](../../devkit/documents/NxJsonConfiguration#release)
+
+---
+
+### sync
+
+• `Optional` **sync**: `NxSyncConfiguration`
+
+Configuration for the `nx sync` command.
+
+#### Inherited from
+
+[NxJsonConfiguration](../../devkit/documents/NxJsonConfiguration).[sync](../../devkit/documents/NxJsonConfiguration#sync)
+
+---
+
 ### targetDefaults
 
-• `Optional` **targetDefaults**: `TargetDefaults`
+• `Optional` **targetDefaults**: [`TargetDefaults`](../../devkit/documents/TargetDefaults)
 
 Dependencies between different target names across all projects
 
@@ -239,11 +361,35 @@ Available Task Runners
 
 #### Index signature
 
-▪ [tasksRunnerName: `string`]: { `options?`: `any` ; `runner`: `string` }
+▪ [tasksRunnerName: `string`]: \{ `options?`: `any` ; `runner?`: `string` }
 
 #### Inherited from
 
 [NxJsonConfiguration](../../devkit/documents/NxJsonConfiguration).[tasksRunnerOptions](../../devkit/documents/NxJsonConfiguration#tasksrunneroptions)
+
+---
+
+### useDaemonProcess
+
+• `Optional` **useDaemonProcess**: `boolean`
+
+Set this to false to disable the daemon.
+
+#### Inherited from
+
+[NxJsonConfiguration](../../devkit/documents/NxJsonConfiguration).[useDaemonProcess](../../devkit/documents/NxJsonConfiguration#usedaemonprocess)
+
+---
+
+### useInferencePlugins
+
+• `Optional` **useInferencePlugins**: `boolean`
+
+Set this to false to disable adding inference plugins when generating new projects
+
+#### Inherited from
+
+[NxJsonConfiguration](../../devkit/documents/NxJsonConfiguration).[useInferencePlugins](../../devkit/documents/NxJsonConfiguration#useinferenceplugins)
 
 ---
 
@@ -267,10 +413,10 @@ Where new apps + libs should be placed
 
 #### Type declaration
 
-| Name      | Type     |
-| :-------- | :------- |
-| `appsDir` | `string` |
-| `libsDir` | `string` |
+| Name       | Type     |
+| :--------- | :------- |
+| `appsDir?` | `string` |
+| `libsDir?` | `string` |
 
 #### Inherited from
 

@@ -3,18 +3,17 @@ import {
   getProjects,
   joinPathFragments,
   runTasksInSerial,
-  stripIndents,
   Tree,
 } from '@nx/devkit';
 import { determineProjectNameAndRootOptions } from '@nx/devkit/src/generators/project-name-and-root-utils';
-import { lt } from 'semver';
 import { E2eTestRunner } from '../../utils/test-runners';
 import applicationGenerator from '../application/application';
 import remoteGenerator from '../remote/remote';
 import { setupMf } from '../setup-mf/setup-mf';
-import { getInstalledAngularVersionInfo } from '../utils/version-utils';
-import { addSsr } from './lib';
+import { updateSsrSetup } from './lib';
 import type { Schema } from './schema';
+import { addMfEnvToTargetDefaultInputs } from '../utils/add-mf-env-to-inputs';
+import { isValidVariable } from '@nx/js';
 
 export async function host(tree: Tree, options: Schema) {
   return await hostInternal(tree, {
@@ -23,18 +22,27 @@ export async function host(tree: Tree, options: Schema) {
   });
 }
 
-export async function hostInternal(tree: Tree, options: Schema) {
-  const installedAngularVersionInfo = getInstalledAngularVersionInfo(tree);
-
-  if (lt(installedAngularVersionInfo.version, '14.1.0') && options.standalone) {
-    throw new Error(stripIndents`The "standalone" option is only supported in Angular >= 14.1.0. You are currently using ${installedAngularVersionInfo.version}.
-    You can resolve this error by removing the "standalone" option or by migrating to Angular 14.1.0.`);
-  }
+export async function hostInternal(tree: Tree, schema: Schema) {
+  const { typescriptConfiguration = true, ...options }: Schema = schema;
+  options.standalone = options.standalone ?? true;
 
   const projects = getProjects(tree);
 
   const remotesToGenerate: string[] = [];
   const remotesToIntegrate: string[] = [];
+
+  // Check to see if remotes are provided and also check if --dynamic is provided
+  // if both are check that the remotes are valid names else throw an error.
+  if (options.dynamic && options.remotes?.length > 0) {
+    options.remotes.forEach((remote) => {
+      const isValidRemote = isValidVariable(remote);
+      if (!isValidRemote.isValid) {
+        throw new Error(
+          `Invalid remote name provided: ${remote}. ${isValidRemote.message}`
+        );
+      }
+    });
+  }
 
   if (options.remotes && options.remotes.length > 0) {
     options.remotes.forEach((remote) => {
@@ -58,10 +66,11 @@ export async function hostInternal(tree: Tree, options: Schema) {
 
   const appInstallTask = await applicationGenerator(tree, {
     ...options,
-    standalone: options.standalone ?? false,
+    standalone: options.standalone,
     routing: true,
     port: 4200,
     skipFormat: true,
+    bundler: 'webpack',
   });
 
   const skipE2E =
@@ -78,11 +87,19 @@ export async function hostInternal(tree: Tree, options: Schema) {
     skipE2E,
     e2eProjectName: skipE2E ? undefined : `${hostProjectName}-e2e`,
     prefix: options.prefix,
+    typescriptConfiguration,
+    standalone: options.standalone,
+    setParserOptionsProject: options.setParserOptionsProject,
   });
 
   let installTasks = [appInstallTask];
   if (options.ssr) {
-    let ssrInstallTask = await addSsr(tree, options, hostProjectName);
+    let ssrInstallTask = await updateSsrSetup(
+      tree,
+      options,
+      hostProjectName,
+      typescriptConfiguration
+    );
     installTasks.push(ssrInstallTask);
   }
 
@@ -107,8 +124,11 @@ export async function hostInternal(tree: Tree, options: Schema) {
       host: hostProjectName,
       skipFormat: true,
       standalone: options.standalone,
+      typescriptConfiguration,
     });
   }
+
+  addMfEnvToTargetDefaultInputs(tree);
 
   if (!options.skipFormat) {
     await formatFiles(tree);

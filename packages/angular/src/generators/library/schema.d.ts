@@ -1,5 +1,5 @@
 import type { ProjectNameAndRootFormat } from '@nx/devkit/src/generators/project-name-and-root-utils';
-import type { Linter } from '@nx/linter';
+import type { Linter, LinterType } from '@nx/eslint';
 import type { UnitTestRunner } from '../../utils/test-runners';
 
 export interface Schema {
@@ -24,7 +24,7 @@ export interface Schema {
   parent?: string;
   tags?: string;
   strict?: boolean;
-  linter?: Linter;
+  linter?: Linter | LinterType;
   unitTestRunner?: UnitTestRunner;
   compilationMode?: 'full' | 'partial';
   setParserOptionsProject?: boolean;
@@ -40,4 +40,5 @@ export interface Schema {
   skipTests?: boolean;
   selector?: string;
   skipSelector?: boolean;
+  addPlugin?: boolean;
 }

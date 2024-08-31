@@ -55,7 +55,7 @@ Generate a buildable library using [Rollup](https://rollupjs.org) as the bundler
 npx nx g @nx/js:lib mylib --bundler=rollup
 ```
 
-If you do not want to use `swc` as the compiler, and want to use the default `babel` compiler, you can do so in your `project.json` under the `build` target options, using the [`compiler` property](https://nx.dev/packages/rollup/executors/rollup#compiler):
+If you do not want to use `swc` as the compiler, and want to use the default `babel` compiler, you can do so in your `project.json` under the `build` target options, using the [`compiler` property](/nx-api/rollup/executors/rollup#compiler):
 
 ```jsonc {% fileName="libs/mylib/project.json" %}
 "build": {
@@ -117,8 +117,12 @@ npx nx g lib mylib --publishable
 
 Generate a library named `mylib` and put it under a directory named `myapp` (`libs/myapp/mylib`)
 
+{% callout type="note" title="Directory Flag Behavior Changes" %}
+The command below uses the `as-provided` directory flag behavior, which is the default in Nx 16.8.0. If you're on an earlier version of Nx or using the `derived` option, use `--directory=myapp`. See the [as-provided vs. derived documentation](/deprecated/as-provided-vs-derived) for more details.
+{% /callout %}
+
 ```shell
-npx nx g lib mylib --directory=myapp
+npx nx g lib mylib --directory=libs/myapp/mylib
 ```
 
 {% /tab %}

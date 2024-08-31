@@ -5,6 +5,21 @@ import { getInputs, TaskHasher } from './task-hasher';
 import { ProjectGraph } from '../config/project-graph';
 import { NxJsonConfiguration } from '../config/nx-json';
 import { readNxJson } from '../config/nx-json';
+import { IS_WASM, TaskDetails } from '../native';
+import { getDbConnection } from '../utils/db-connection';
+
+let taskDetails: TaskDetails;
+
+function getTaskDetails() {
+  // TODO: Remove when wasm supports sqlite
+  if (IS_WASM) {
+    return null;
+  }
+  if (!taskDetails) {
+    taskDetails = new TaskDetails(getDbConnection());
+  }
+  return taskDetails;
+}
 
 export async function hashTasksThatDoNotDependOnOutputsOfOtherTasks(
   hasher: TaskHasher,
@@ -12,10 +27,14 @@ export async function hashTasksThatDoNotDependOnOutputsOfOtherTasks(
   taskGraph: TaskGraph,
   nxJson: NxJsonConfiguration
 ) {
+  performance.mark('hashMultipleTasks:start');
+
+  const taskDetails = getTaskDetails();
+
   const tasks = Object.values(taskGraph.tasks);
   const tasksWithHashers = await Promise.all(
     tasks.map(async (task) => {
-      const customHasher = await getCustomHasher(task, projectGraph);
+      const customHasher = getCustomHasher(task, projectGraph);
       return { task, customHasher };
     })
   );
@@ -34,32 +53,75 @@ export async function hashTasksThatDoNotDependOnOutputsOfOtherTasks(
     })
     .map((t) => t.task);
 
-  const hashes = await hasher.hashTasks(tasksToHash, taskGraph);
+  const hashes = await hasher.hashTasks(tasksToHash, taskGraph, process.env);
   for (let i = 0; i < tasksToHash.length; i++) {
     tasksToHash[i].hash = hashes[i].value;
     tasksToHash[i].hashDetails = hashes[i].details;
   }
+  // TODO: Remove if when wasm supports sqlite
+  if (taskDetails) {
+    taskDetails.recordTaskDetails(
+      tasksToHash.map((task) => ({
+        hash: task.hash,
+        project: task.target.project,
+        target: task.target.target,
+        configuration: task.target.configuration,
+      }))
+    );
+  }
+
+  performance.mark('hashMultipleTasks:end');
+  performance.measure(
+    'hashMultipleTasks',
+    'hashMultipleTasks:start',
+    'hashMultipleTasks:end'
+  );
 }
 
 export async function hashTask(
   hasher: TaskHasher,
   projectGraph: ProjectGraph,
   taskGraph: TaskGraph,
-  task: Task
+  task: Task,
+  env: NodeJS.ProcessEnv
 ) {
-  const customHasher = await getCustomHasher(task, projectGraph);
+  performance.mark('hashSingleTask:start');
+
+  const taskDetails = getTaskDetails();
+  const customHasher = getCustomHasher(task, projectGraph);
   const projectsConfigurations =
     readProjectsConfigurationFromProjectGraph(projectGraph);
+
   const { value, details } = await (customHasher
     ? customHasher(task, {
         hasher,
         projectGraph,
         taskGraph,
-        workspaceConfig: projectsConfigurations, // to make the change non-breaking. Remove after v18
+        workspaceConfig: projectsConfigurations, // to make the change non-breaking. Remove after v19
         projectsConfigurations,
         nxJsonConfiguration: readNxJson(),
+        env,
       } as any)
-    : hasher.hashTask(task, taskGraph));
+    : hasher.hashTask(task, taskGraph, env));
   task.hash = value;
   task.hashDetails = details;
+
+  // TODO: Remove if when wasm supports sqlite
+  if (taskDetails) {
+    taskDetails.recordTaskDetails([
+      {
+        hash: task.hash,
+        project: task.target.project,
+        target: task.target.target,
+        configuration: task.target.configuration,
+      },
+    ]);
+  }
+
+  performance.mark('hashSingleTask:end');
+  performance.measure(
+    'hashSingleTask',
+    'hashSingleTask:start',
+    'hashSingleTask:end'
+  );
 }

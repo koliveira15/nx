@@ -3,37 +3,34 @@ import {
   checkFilesExist,
   cleanupProject,
   createFile,
-  ensurePlaywrightBrowsersInstallation,
   isNotWindows,
   killPorts,
+  listFiles,
   newProject,
   readFile,
-  rmDist,
   runCLI,
   runCLIAsync,
   runE2ETests,
-  setMaxWorkers,
   tmpProjPath,
   uniq,
   updateFile,
-  updateProjectConfig,
+  updateJson,
 } from '@nx/e2e/utils';
 import { join } from 'path';
 import { copyFileSync } from 'fs';
 
 describe('Web Components Applications', () => {
-  beforeEach(() => newProject());
-  afterEach(() => cleanupProject());
+  beforeAll(() => newProject());
+  afterAll(() => cleanupProject());
 
   it('should be able to generate a web app', async () => {
     const appName = uniq('app');
     runCLI(
       `generate @nx/web:app ${appName} --bundler=webpack --no-interactive`
     );
-    await setMaxWorkers();
 
     const lintResults = runCLI(`lint ${appName}`);
-    expect(lintResults).toContain('All files pass linting.');
+    expect(lintResults).toContain('Successfully ran target lint');
 
     const testResults = await runCLIAsync(`test ${appName}`);
 
@@ -42,12 +39,12 @@ describe('Web Components Applications', () => {
     );
     const lintE2eResults = runCLI(`lint ${appName}-e2e`);
 
-    expect(lintE2eResults).toContain('All files pass linting.');
+    expect(lintE2eResults).toContain('Successfully ran target lint');
 
     if (isNotWindows() && runE2ETests()) {
-      const e2eResults = runCLI(`e2e ${appName}-e2e --no-watch`);
-      expect(e2eResults).toContain('All specs passed!');
-      expect(await killPorts()).toBeTruthy();
+      const e2eResults = runCLI(`e2e ${appName}-e2e`);
+      expect(e2eResults).toContain('Successfully ran target e2e for project');
+      await killPorts();
     }
 
     copyFileSync(
@@ -69,106 +66,52 @@ describe('Web Components Applications', () => {
         public static observedAttributes = [];
         connectedCallback() {
           this.innerHTML = \`
-            <img src="\${inlined} "/>
-            <img src="\${emitted} "/>
+            <img src='\${inlined} '/>
+            <img src='\${emitted} '/>
           \`;
         }
       }
       customElements.define('app-root', AppElement);
     `
     );
-    runCLI(`build ${appName} --outputHashing none`);
+    setPluginOption(
+      `apps/${appName}/webpack.config.js`,
+      'outputHashing',
+      'none'
+    );
+    runCLI(`build ${appName}`);
+    const images = listFiles(`dist/apps/${appName}`).filter((f) =>
+      f.endsWith('.png')
+    );
     checkFilesExist(
       `dist/apps/${appName}/index.html`,
       `dist/apps/${appName}/runtime.js`,
-      `dist/apps/${appName}/emitted.png`,
       `dist/apps/${appName}/main.js`,
       `dist/apps/${appName}/styles.css`
     );
-    checkFilesDoNotExist(`dist/apps/${appName}/inlined.png`);
+    expect(images.some((f) => f.startsWith('emitted.'))).toBe(true);
+    expect(images.some((f) => f.startsWith('inlined.'))).toBe(false);
 
     expect(readFile(`dist/apps/${appName}/main.js`)).toContain(
-      '<img src="data:image/png;base64'
+      'data:image/png;base64'
     );
     // Should not be a JS module but kept as a PNG
-    expect(readFile(`dist/apps/${appName}/emitted.png`)).not.toContain(
-      'export default'
-    );
+    expect(
+      readFile(
+        `dist/apps/${appName}/${images.find((f) => f.startsWith('emitted.'))}`
+      )
+    ).not.toContain('export default');
 
     expect(readFile(`dist/apps/${appName}/index.html`)).toContain(
       '<link rel="stylesheet" href="styles.css">'
     );
   }, 500000);
 
-  it('should generate working playwright e2e app', async () => {
-    const appName = uniq('app');
-    runCLI(
-      `generate @nx/web:app ${appName} --bundler=webpack --e2eTestRunner=playwright --no-interactive`
-    );
-    await setMaxWorkers();
-
-    const lintE2eResults = runCLI(`lint ${appName}-e2e`);
-
-    expect(lintE2eResults).toContain('All files pass linting.');
-
-    if (isNotWindows() && runE2ETests()) {
-      ensurePlaywrightBrowsersInstallation();
-      const e2eResults = runCLI(`e2e ${appName}-e2e`);
-      expect(e2eResults).toContain(
-        `Successfully ran target e2e for project ${appName}-e2e`
-      );
-      expect(await killPorts()).toBeTruthy();
-    }
-  }, 500000);
-
-  it('should remove previous output before building', async () => {
-    const appName = uniq('app');
-    const libName = uniq('lib');
-
-    runCLI(
-      `generate @nx/web:app ${appName} --bundler=webpack --no-interactive --compiler swc`
-    );
-    runCLI(
-      `generate @nx/react:lib ${libName} --bundler=rollup --no-interactive --compiler swc --unitTestRunner=jest`
-    );
-    await setMaxWorkers();
-
-    createFile(`dist/apps/${appName}/_should_remove.txt`);
-    createFile(`dist/libs/${libName}/_should_remove.txt`);
-    createFile(`dist/apps/_should_not_remove.txt`);
-    checkFilesExist(
-      `dist/apps/${appName}/_should_remove.txt`,
-      `dist/apps/_should_not_remove.txt`
-    );
-    runCLI(`build ${appName} --outputHashing none`);
-    runCLI(`build ${libName}`);
-    checkFilesDoNotExist(
-      `dist/apps/${appName}/_should_remove.txt`,
-      `dist/libs/${libName}/_should_remove.txt`
-    );
-    checkFilesExist(`dist/apps/_should_not_remove.txt`);
-
-    // Asset that React runtime is imported
-    expect(readFile(`dist/libs/${libName}/index.esm.js`)).toMatch(
-      /react\/jsx-runtime/
-    );
-
-    // `delete-output-path`
-    createFile(`dist/apps/${appName}/_should_keep.txt`);
-    runCLI(`build ${appName} --delete-output-path=false --outputHashing none`);
-    checkFilesExist(`dist/apps/${appName}/_should_keep.txt`);
-
-    createFile(`dist/libs/${libName}/_should_keep.txt`);
-    runCLI(`build ${libName} --delete-output-path=false --outputHashing none`);
-    checkFilesExist(`dist/libs/${libName}/_should_keep.txt`);
-  }, 120000);
-
   it('should emit decorator metadata when --compiler=babel and it is enabled in tsconfig', async () => {
     const appName = uniq('app');
     runCLI(
       `generate @nx/web:app ${appName} --bundler=webpack --compiler=babel --no-interactive`
     );
-    await setMaxWorkers();
 
     updateFile(`apps/${appName}/src/app/app.element.ts`, (content) => {
       const newContent = `${content}
@@ -199,7 +142,12 @@ describe('Web Components Applications', () => {
       `;
       return newContent;
     });
-    runCLI(`build ${appName} --outputHashing none`);
+    setPluginOption(
+      `apps/${appName}/webpack.config.js`,
+      'outputHashing',
+      'none'
+    );
+    runCLI(`build ${appName}`);
 
     expect(readFile(`dist/apps/${appName}/main.js`)).toMatch(
       /Reflect\.metadata/
@@ -212,7 +160,12 @@ describe('Web Components Applications', () => {
       return JSON.stringify(json);
     });
 
-    runCLI(`build ${appName} --outputHashing none`);
+    setPluginOption(
+      `apps/${appName}/webpack.config.js`,
+      'outputHashing',
+      'none'
+    );
+    runCLI(`build ${appName}`);
 
     expect(readFile(`dist/apps/${appName}/main.js`)).not.toMatch(
       /Reflect\.metadata/
@@ -224,7 +177,6 @@ describe('Web Components Applications', () => {
     runCLI(
       `generate @nx/web:app ${appName} --bundler=webpack --compiler=swc --no-interactive`
     );
-    await setMaxWorkers();
 
     updateFile(`apps/${appName}/src/app/app.element.ts`, (content) => {
       const newContent = `${content}
@@ -255,68 +207,17 @@ describe('Web Components Applications', () => {
       `;
       return newContent;
     });
-    runCLI(`build ${appName} --outputHashing none`);
+    setPluginOption(
+      `apps/${appName}/webpack.config.js`,
+      'outputHashing',
+      'none'
+    );
+    runCLI(`build ${appName}`);
 
     expect(readFile(`dist/apps/${appName}/main.js`)).toMatch(
-      /Foo=(_ts|_)_decorate\(\[sealed\],Foo\)/g
+      /Foo=.*?_decorate/
     );
   }, 120000);
-
-  it('should support custom webpackConfig option', async () => {
-    const appName = uniq('app');
-    runCLI(
-      `generate @nx/web:app ${appName} --bundler=webpack --no-interactive`
-    );
-    await setMaxWorkers();
-
-    await updateProjectConfig(appName, (config) => {
-      config.targets.build.options.webpackConfig = `apps/${appName}/webpack.config.js`;
-      return config;
-    });
-
-    // Return sync function
-    updateFile(
-      `apps/${appName}/webpack.config.js`,
-      `
-      const { composePlugins, withNx, withWeb } = require('@nx/webpack');
-      module.exports = composePlugins(withNx(), withWeb(), (config, context) => {
-        return config;
-      });
-    `
-    );
-    runCLI(`build ${appName} --outputHashing none`);
-    checkFilesExist(`dist/apps/${appName}/main.js`);
-
-    rmDist();
-
-    // Return async function
-    updateFile(
-      `apps/${appName}/webpack.config.js`,
-      `
-      const { composePlugins, withNx, withWeb } = require('@nx/webpack');
-      module.exports = composePlugins(withNx(), withWeb(), async (config, context) => {
-        return config;
-      });
-    `
-    );
-    runCLI(`build ${appName} --outputHashing none`);
-    checkFilesExist(`dist/apps/${appName}/main.js`);
-
-    rmDist();
-
-    // Return promise of function
-    updateFile(
-      `apps/${appName}/webpack.config.js`,
-      `
-      const { composePlugins, withNx, withWeb } = require('@nx/webpack');
-      module.exports = composePlugins(withNx(), withWeb(), Promise.resolve((config, context) => {
-        return config;
-      }));
-    `
-    );
-    runCLI(`build ${appName} --outputHashing none`);
-    checkFilesExist(`dist/apps/${appName}/main.js`);
-  }, 100000);
 
   it('should support generating applications with the new name and root format', () => {
     const appName = uniq('app1');
@@ -348,47 +249,44 @@ describe('CLI - Environment Variables', () => {
     //test if the Nx CLI loads root .env vars
     updateFile(
       `.env`,
-      'NX_WS_BASE=ws-base\nNX_SHARED_ENV=shared-in-workspace-base'
+      'NX_PUBLIC_WS_BASE=ws-base\nNX_PUBLIC_SHARED_ENV=shared-in-workspace-base'
     );
     updateFile(
       `.env.local`,
-      'NX_WS_ENV_LOCAL=ws-env-local\nNX_SHARED_ENV=shared-in-workspace-env-local'
+      'NX_PUBLIC_WS_ENV_LOCAL=ws-env-local\nNX_PUBLIC_SHARED_ENV=shared-in-workspace-env-local'
     );
     updateFile(
       `.local.env`,
-      'NX_WS_LOCAL_ENV=ws-local-env\nNX_SHARED_ENV=shared-in-workspace-local-env'
+      'NX_PUBLIC_WS_LOCAL_ENV=ws-local-env\nNX_PUBLIC_SHARED_ENV=shared-in-workspace-local-env'
     );
     updateFile(
       `apps/${appName}/.env`,
-      'NX_APP_BASE=app-base\nNX_SHARED_ENV=shared-in-app-base'
+      'NX_PUBLIC_APP_BASE=app-base\nNX_PUBLIC_SHARED_ENV=shared-in-app-base'
     );
     updateFile(
       `apps/${appName}/.env.local`,
-      'NX_APP_ENV_LOCAL=app-env-local\nNX_SHARED_ENV=shared-in-app-env-local'
+      'NX_PUBLIC_APP_ENV_LOCAL=app-env-local\nNX_PUBLIC_SHARED_ENV=shared-in-app-env-local'
     );
     updateFile(
       `apps/${appName}/.local.env`,
-      'NX_APP_LOCAL_ENV=app-local-env\nNX_SHARED_ENV=shared-in-app-local-env'
+      'NX_PUBLIC_APP_LOCAL_ENV=app-local-env\nNX_PUBLIC_SHARED_ENV=shared-in-app-local-env'
     );
     const main = `apps/${appName}/src/main.ts`;
     const newCode = `
-      const envVars = [process.env.NODE_ENV, process.env.NX_BUILD, process.env.NX_API, process.env.NX_WS_BASE, process.env.NX_WS_ENV_LOCAL, process.env.NX_WS_LOCAL_ENV, process.env.NX_APP_BASE, process.env.NX_APP_ENV_LOCAL, process.env.NX_APP_LOCAL_ENV, process.env.NX_SHARED_ENV];
+      const envVars = [process.env.NODE_ENV, process.env.NX_PUBLIC_WS_BASE, process.env.NX_PUBLIC_WS_ENV_LOCAL, process.env.NX_PUBLIC_WS_LOCAL_ENV, process.env.NX_PUBLIC_APP_BASE, process.env.NX_PUBLIC_APP_ENV_LOCAL, process.env.NX_PUBLIC_APP_LOCAL_ENV, process.env.NX_PUBLIC_SHARED_ENV];
       const nodeEnv = process.env.NODE_ENV;
-      const nxBuild = process.env.NX_BUILD;
-      const nxApi = process.env.NX_API;
-      const nxWsBase = process.env.NX_WS_BASE;
-      const nxWsEnvLocal = process.env.NX_WS_ENV_LOCAL;
-      const nxWsLocalEnv = process.env.NX_WS_LOCAL_ENV;
-      const nxAppBase = process.env.NX_APP_BASE;
-      const nxAppEnvLocal = process.env.NX_APP_ENV_LOCAL;
-      const nxAppLocalEnv = process.env.NX_APP_LOCAL_ENV;
-      const nxSharedEnv = process.env.NX_SHARED_ENV;
+      const nxWsBase = process.env.NX_PUBLIC_WS_BASE;
+      const nxWsEnvLocal = process.env.NX_PUBLIC_WS_ENV_LOCAL;
+      const nxWsLocalEnv = process.env.NX_PUBLIC_WS_LOCAL_ENV;
+      const nxAppBase = process.env.NX_PUBLIC_APP_BASE;
+      const nxAppEnvLocal = process.env.NX_PUBLIC_APP_ENV_LOCAL;
+      const nxAppLocalEnv = process.env.NX_PUBLIC_APP_LOCAL_ENV;
+      const nxSharedEnv = process.env.NX_PUBLIC_SHARED_ENV;
       `;
 
     runCLI(
       `generate @nx/web:app ${appName} --bundler=webpack --no-interactive --compiler=babel`
     );
-    await setMaxWorkers();
 
     const content = readFile(main);
 
@@ -398,138 +296,63 @@ describe('CLI - Environment Variables', () => {
 
     updateFile(
       `apps/${appName2}/.env`,
-      'NX_APP_BASE=app2-base\nNX_SHARED_ENV=shared2-in-app-base'
+      'NX_PUBLIC_APP_BASE=app2-base\nNX_PUBLIC_SHARED_ENV=shared2-in-app-base'
     );
     updateFile(
       `apps/${appName2}/.env.local`,
-      'NX_APP_ENV_LOCAL=app2-env-local\nNX_SHARED_ENV=shared2-in-app-env-local'
+      'NX_PUBLIC_APP_ENV_LOCAL=app2-env-local\nNX_PUBLIC_SHARED_ENV=shared2-in-app-env-local'
     );
     updateFile(
       `apps/${appName2}/.local.env`,
-      'NX_APP_LOCAL_ENV=app2-local-env\nNX_SHARED_ENV=shared2-in-app-local-env'
+      'NX_PUBLIC_APP_LOCAL_ENV=app2-local-env\nNX_PUBLIC_SHARED_ENV=shared2-in-app-local-env'
     );
     const main2 = `apps/${appName2}/src/main.ts`;
-    const newCode2 = `const envVars = [process.env.NODE_ENV, process.env.NX_BUILD, process.env.NX_API, process.env.NX_WS_BASE, process.env.NX_WS_ENV_LOCAL, process.env.NX_WS_LOCAL_ENV, process.env.NX_APP_BASE, process.env.NX_APP_ENV_LOCAL, process.env.NX_APP_LOCAL_ENV, process.env.NX_SHARED_ENV];`;
+    const newCode2 = `const envVars = [process.env.NODE_ENV, process.env.NX_PUBLIC_WS_BASE, process.env.NX_PUBLIC_WS_ENV_LOCAL, process.env.NX_PUBLIC_WS_LOCAL_ENV, process.env.NX_PUBLIC_APP_BASE, process.env.NX_PUBLIC_APP_ENV_LOCAL, process.env.NX_PUBLIC_APP_LOCAL_ENV, process.env.NX_PUBLIC_SHARED_ENV];`;
 
     runCLI(
       `generate @nx/web:app ${appName2} --bundler=webpack --no-interactive --compiler=babel`
     );
-    await setMaxWorkers();
 
     const content2 = readFile(main2);
 
     updateFile(main2, `${newCode2}\n${content2}`);
 
-    runCLI(
-      `run-many --target build --outputHashing=none --optimization=false`,
-      {
-        env: {
-          ...process.env,
-          NODE_ENV: 'test',
-          NX_BUILD: '52',
-          NX_API: 'QA',
-        },
-      }
+    setPluginOption(
+      `apps/${appName}/webpack.config.js`,
+      'outputHashing',
+      'none'
     );
+    setPluginOption(`apps/${appName}/webpack.config.js`, 'optimization', false);
+    setPluginOption(
+      `apps/${appName2}/webpack.config.js`,
+      'outputHashing',
+      'none'
+    );
+    setPluginOption(
+      `apps/${appName2}/webpack.config.js`,
+      'optimization',
+      false
+    );
+    runCLI(`run-many --target build --node-env=test`);
     expect(readFile(`dist/apps/${appName}/main.js`)).toContain(
-      'const envVars = ["test", "52", "QA", "ws-base", "ws-env-local", "ws-local-env", "app-base", "app-env-local", "app-local-env", "shared-in-app-env-local"];'
+      'const envVars = ["test", "ws-base", "ws-env-local", "ws-local-env", "app-base", "app-env-local", "app-local-env", "shared-in-app-env-local"];'
     );
     expect(readFile(`dist/apps/${appName2}/main.js`)).toContain(
-      'const envVars = ["test", "52", "QA", "ws-base", "ws-env-local", "ws-local-env", "app2-base", "app2-env-local", "app2-local-env", "shared2-in-app-env-local"];'
+      'const envVars = ["test", "ws-base", "ws-env-local", "ws-local-env", "app2-base", "app2-env-local", "app2-local-env", "shared2-in-app-env-local"];'
     );
-  });
-});
-
-describe('Build Options', () => {
-  it('should inject/bundle external scripts and styles', async () => {
-    newProject();
-
-    const appName = uniq('app');
-
-    runCLI(
-      `generate @nx/web:app ${appName} --bundler=webpack --no-interactive`
-    );
-    await setMaxWorkers();
-
-    const srcPath = `apps/${appName}/src`;
-    const fooCss = `${srcPath}/foo.css`;
-    const barCss = `${srcPath}/bar.css`;
-    const fooJs = `${srcPath}/foo.js`;
-    const barJs = `${srcPath}/bar.js`;
-    const fooCssContent = `/* ${uniq('foo')} */`;
-    const barCssContent = `/* ${uniq('bar')} */`;
-    const fooJsContent = `/* ${uniq('foo')} */`;
-    const barJsContent = `/* ${uniq('bar')} */`;
-
-    createFile(fooCss);
-    createFile(barCss);
-    createFile(fooJs);
-    createFile(barJs);
-
-    // createFile could not create a file with content
-    updateFile(fooCss, fooCssContent);
-    updateFile(barCss, barCssContent);
-    updateFile(fooJs, fooJsContent);
-    updateFile(barJs, barJsContent);
-
-    const barScriptsBundleName = 'bar-scripts';
-    const barStylesBundleName = 'bar-styles';
-
-    await updateProjectConfig(appName, (config) => {
-      const buildOptions = config.targets.build.options;
-
-      buildOptions.scripts = [
-        {
-          input: fooJs,
-          inject: true,
-        },
-        {
-          input: barJs,
-          inject: false,
-          bundleName: barScriptsBundleName,
-        },
-      ];
-
-      buildOptions.styles = [
-        {
-          input: fooCss,
-          inject: true,
-        },
-        {
-          input: barCss,
-          inject: false,
-          bundleName: barStylesBundleName,
-        },
-      ];
-      return config;
-    });
-
-    runCLI(`build ${appName} --outputHashing none --optimization false`);
-
-    const distPath = `dist/apps/${appName}`;
-    const scripts = readFile(`${distPath}/scripts.js`);
-    const styles = readFile(`${distPath}/styles.css`);
-    const barScripts = readFile(`${distPath}/${barScriptsBundleName}.js`);
-    const barStyles = readFile(`${distPath}/${barStylesBundleName}.css`);
-
-    expect(scripts).toContain(fooJsContent);
-    expect(scripts).not.toContain(barJsContent);
-    expect(barScripts).toContain(barJsContent);
-
-    expect(styles).toContain(fooCssContent);
-    expect(styles).not.toContain(barCssContent);
-    expect(barStyles).toContain(barCssContent);
   });
 });
 
 describe('index.html interpolation', () => {
+  beforeAll(() => newProject());
+  afterAll(() => cleanupProject());
+
   test('should interpolate environment variables', async () => {
     const appName = uniq('app');
 
     runCLI(
       `generate @nx/web:app ${appName} --bundler=webpack --no-interactive`
     );
-    await setMaxWorkers();
 
     const srcPath = `apps/${appName}/src`;
     const indexPath = `${srcPath}/index.html`;
@@ -544,15 +367,14 @@ describe('index.html interpolation', () => {
       </head>
       <body>
         <div id='root'></div>
-        <div>Nx Variable: %NX_VARIABLE%</div>
+        <div>Nx Variable: %NX_PUBLIC_VARIABLE%</div>
         <div>Some other variable: %SOME_OTHER_VARIABLE%</div>
-        <div>Deploy Url: %DEPLOY_URL%</div>
       </body>
     </html>
 `;
     const envFilePath = `apps/${appName}/.env`;
     const envFileContents = `
-      NX_VARIABLE=foo
+      NX_PUBLIC_VARIABLE=foo
       SOME_OTHER_VARIABLE=bar
     }`;
 
@@ -562,19 +384,24 @@ describe('index.html interpolation', () => {
     updateFile(envFilePath, envFileContents);
     updateFile(indexPath, indexContent);
 
-    await updateProjectConfig(appName, (config) => {
-      const buildOptions = config.targets.build.options;
-      buildOptions.deployUrl = 'baz';
-      return config;
-    });
-
     runCLI(`build ${appName}`);
 
     const distPath = `dist/apps/${appName}`;
     const resultIndexContents = readFile(`${distPath}/index.html`);
 
     expect(resultIndexContents).toMatch(/<div>Nx Variable: foo<\/div>/);
-    expect(resultIndexContents).toMatch(/<div>Nx Variable: foo<\/div>/);
-    expect(resultIndexContents).toMatch(/ <div>Nx Variable: foo<\/div>/);
   });
 });
+
+function setPluginOption(
+  webpackConfigPath: string,
+  option: string,
+  value: string | boolean
+): void {
+  updateFile(webpackConfigPath, (content) => {
+    return content.replace(
+      new RegExp(`${option}: .+`),
+      `${option}: ${typeof value === 'string' ? `'${value}'` : value},`
+    );
+  });
+}

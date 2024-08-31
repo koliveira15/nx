@@ -7,7 +7,7 @@ import {
   ModuleFederationConfig,
   sharePackages,
   shareWorkspaceLibraries,
-} from '@nx/devkit/src/utils/module-federation';
+} from '@nx/webpack/src/utils/module-federation';
 
 import {
   createProjectGraphAsync,
@@ -17,11 +17,26 @@ import {
 import { readCachedProjectConfiguration } from 'nx/src/project-graph/project-graph';
 
 export function getFunctionDeterminateRemoteUrl(isServer: boolean = false) {
-  const target = isServer ? 'serve-server' : 'serve';
+  const target = 'serve';
   const remoteEntry = isServer ? 'server/remoteEntry.js' : 'remoteEntry.js';
 
   return function (remote: string) {
-    const remoteConfiguration = readCachedProjectConfiguration(remote);
+    const mappedStaticRemotesFromEnv = process.env
+      .NX_MF_DEV_SERVER_STATIC_REMOTES
+      ? JSON.parse(process.env.NX_MF_DEV_SERVER_STATIC_REMOTES)
+      : undefined;
+    if (mappedStaticRemotesFromEnv && mappedStaticRemotesFromEnv[remote]) {
+      return `${mappedStaticRemotesFromEnv[remote]}/${remoteEntry}`;
+    }
+
+    let remoteConfiguration = null;
+    try {
+      remoteConfiguration = readCachedProjectConfiguration(remote);
+    } catch (e) {
+      throw new Error(
+        `Cannot find remote: "${remote}". Check that the remote name is correct in your module federation config file.\n`
+      );
+    }
     const serveTarget = remoteConfiguration?.targets?.[target];
 
     if (!serveTarget) {
@@ -84,7 +99,7 @@ export async function getModuleFederationConfig(
   const npmPackages = sharePackages(dependencies.npmPackages);
 
   const sharedDependencies = {
-    ...sharedLibraries.getLibraries(),
+    ...sharedLibraries.getLibraries(project.root),
     ...npmPackages,
   };
 
@@ -95,14 +110,26 @@ export async function getModuleFederationConfig(
     projectGraph
   );
 
+  // Choose the correct mapRemotes function based on the server state.
   const mapRemotesFunction = options.isServer ? mapRemotesForSSR : mapRemotes;
-  const determineRemoteUrlFn =
-    options.determineRemoteUrl ||
-    getFunctionDeterminateRemoteUrl(options.isServer);
-  const mappedRemotes =
-    !mfConfig.remotes || mfConfig.remotes.length === 0
-      ? {}
-      : mapRemotesFunction(mfConfig.remotes, 'js', determineRemoteUrlFn);
+
+  // Determine the URL function, either from provided options or by using a default.
+  const determineRemoteUrlFunction = options.determineRemoteUrl
+    ? options.determineRemoteUrl
+    : getFunctionDeterminateRemoteUrl(options.isServer);
+
+  // Map the remotes if they exist, otherwise default to an empty object.
+  let mappedRemotes = {};
+
+  if (mfConfig.remotes && mfConfig.remotes.length > 0) {
+    const isLibraryTypeVar = mfConfig.library?.type === 'var';
+    mappedRemotes = mapRemotesFunction(
+      mfConfig.remotes,
+      'js',
+      determineRemoteUrlFunction,
+      isLibraryTypeVar
+    );
+  }
 
   return { sharedLibraries, sharedDependencies, mappedRemotes };
 }

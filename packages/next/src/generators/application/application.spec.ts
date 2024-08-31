@@ -2,44 +2,51 @@ import { createTreeWithEmptyWorkspace } from '@nx/devkit/testing';
 import {
   getProjects,
   readJson,
+  readNxJson,
   readProjectConfiguration,
   Tree,
 } from '@nx/devkit';
 
+import { Schema } from './schema';
 import { applicationGenerator } from './application';
+import { join } from 'path';
 
 describe('app', () => {
   let tree: Tree;
 
   beforeEach(() => {
-    tree = createTreeWithEmptyWorkspace({ layout: 'apps-libs' });
+    tree = createTreeWithEmptyWorkspace();
   });
 
   it('should add a .gitkeep file to the public directory', async () => {
+    const name = uniq();
     await applicationGenerator(tree, {
-      name: 'myApp',
+      name,
       style: 'css',
+      projectNameAndRootFormat: 'as-provided',
     });
 
-    expect(tree.exists('apps/my-app/public/.gitkeep')).toBe(true);
+    expect(tree.exists(`${name}/public/.gitkeep`)).toBe(true);
   });
 
   it('should update tags and implicit dependencies', async () => {
+    const name = uniq();
     await applicationGenerator(tree, {
-      name: 'myApp',
+      name,
       style: 'css',
       tags: 'one,two',
+      projectNameAndRootFormat: 'as-provided',
     });
 
     const projects = Object.fromEntries(getProjects(tree));
 
     expect(projects).toMatchObject({
-      'my-app': {
+      [`${name}`]: {
         tags: ['one', 'two'],
       },
-      'my-app-e2e': {
+      [`${name}-e2e`]: {
         tags: [],
-        implicitDependencies: ['my-app'],
+        implicitDependencies: [name],
       },
     });
   });
@@ -47,70 +54,78 @@ describe('app', () => {
   it('should extend from root tsconfig.json when no tsconfig.base.json', async () => {
     tree.rename('tsconfig.base.json', 'tsconfig.json');
 
+    const name = uniq();
     await applicationGenerator(tree, {
-      name: 'myApp',
+      name,
       style: 'css',
+      projectNameAndRootFormat: 'as-provided',
     });
 
-    const tsConfig = readJson(tree, 'apps/my-app/tsconfig.json');
-    expect(tsConfig.extends).toBe('../../tsconfig.json');
+    const tsConfig = readJson(tree, `${name}/tsconfig.json`);
+    expect(tsConfig.extends).toBe('../tsconfig.json');
   });
 
   describe('App Router', () => {
     it('should generate files for app layout', async () => {
+      const name = uniq();
       await applicationGenerator(tree, {
-        name: 'testApp',
+        name,
         style: 'css',
+        projectNameAndRootFormat: 'as-provided',
       });
 
-      const tsConfig = readJson(tree, 'apps/test-app/tsconfig.json');
+      const tsConfig = readJson(tree, `${name}/tsconfig.json`);
       expect(tsConfig.include).toEqual([
         '**/*.ts',
         '**/*.tsx',
         '**/*.js',
         '**/*.jsx',
-        '../../apps/test-app/.next/types/**/*.ts',
-        '../../dist/apps/test-app/.next/types/**/*.ts',
+        `../${name}/.next/types/**/*.ts`,
+        `../dist/${name}/.next/types/**/*.ts`,
         'next-env.d.ts',
       ]);
-      expect(tree.exists('apps/test-app/pages/styles.css')).toBeFalsy();
-      expect(tree.exists('apps/test-app/app/global.css')).toBeTruthy();
-      expect(tree.exists('apps/test-app/app/page.tsx')).toBeTruthy();
-      expect(tree.exists('apps/test-app/app/layout.tsx')).toBeTruthy();
-      expect(tree.exists('apps/test-app/app/api/hello/route.ts')).toBeTruthy();
-      expect(tree.exists('apps/test-app/app/page.module.css')).toBeTruthy();
-      expect(tree.exists('apps/test-app/public/favicon.ico')).toBeTruthy();
+      expect(tree.exists(`${name}/src/pages/styles.css`)).toBeFalsy();
+      expect(tree.exists(`${name}/src/app/global.css`)).toBeTruthy();
+      expect(tree.exists(`${name}/src/app/page.tsx`)).toBeTruthy();
+      expect(tree.exists(`${name}/src/app/layout.tsx`)).toBeTruthy();
+      expect(tree.exists(`${name}/src/app/api/hello/route.ts`)).toBeTruthy();
+      expect(tree.exists(`${name}/src/app/page.module.css`)).toBeTruthy();
+      expect(tree.exists(`${name}/public/favicon.ico`)).toBeTruthy();
     });
 
     it('should add layout types correctly for standalone apps', async () => {
+      const name = uniq();
       await applicationGenerator(tree, {
-        name: 'testApp',
+        name,
         style: 'css',
         appDir: true,
         rootProject: true,
+        projectNameAndRootFormat: 'as-provided',
       });
 
       const tsConfig = readJson(tree, 'tsconfig.json');
       expect(tsConfig.include).toEqual([
-        '**/*.ts',
-        '**/*.tsx',
-        '**/*.js',
-        '**/*.jsx',
+        'src/**/*.ts',
+        'src/**/*.tsx',
+        'src/**/*.js',
+        'src/**/*.jsx',
         '.next/types/**/*.ts',
-        'dist/test-app/.next/types/**/*.ts',
+        `dist/${name}/.next/types/**/*.ts`,
         'next-env.d.ts',
       ]);
     });
 
     it('should generate an unstyled component page', async () => {
+      const name = uniq();
       await applicationGenerator(tree, {
-        name: 'testApp',
+        name,
         style: 'none',
         appDir: true,
         rootProject: true,
+        projectNameAndRootFormat: 'as-provided',
       });
 
-      const content = tree.read('app/page.tsx').toString();
+      const content = tree.read('src/app/page.tsx').toString();
 
       expect(content).not.toContain('import styles from');
       expect(content).not.toContain('const StyledPage');
@@ -120,39 +135,45 @@ describe('app', () => {
 
   describe('Pages Router', () => {
     it('should generate files for pages layout', async () => {
+      const name = uniq();
       await applicationGenerator(tree, {
-        name: 'myApp',
+        name,
         style: 'css',
         appDir: false,
+        src: false,
+        projectNameAndRootFormat: 'as-provided',
       });
-      expect(tree.exists('apps/my-app/tsconfig.json')).toBeTruthy();
-      expect(tree.exists('apps/my-app/pages/index.tsx')).toBeTruthy();
-      expect(tree.exists('apps/my-app/specs/index.spec.tsx')).toBeTruthy();
-      expect(tree.exists('apps/my-app/pages/index.module.css')).toBeTruthy();
+      expect(tree.exists(`${name}/tsconfig.json`)).toBeTruthy();
+      expect(tree.exists(`${name}/pages/index.tsx`)).toBeTruthy();
+      expect(tree.exists(`${name}/specs/index.spec.tsx`)).toBeTruthy();
+      expect(tree.exists(`${name}/pages/index.module.css`)).toBeTruthy();
     });
 
     it('should update configurations', async () => {
+      const name = uniq();
       await applicationGenerator(tree, {
-        name: 'myApp',
+        name,
         style: 'css',
+        projectNameAndRootFormat: 'as-provided',
       });
 
-      expect(readProjectConfiguration(tree, 'my-app').root).toEqual(
-        'apps/my-app'
-      );
-      expect(readProjectConfiguration(tree, 'my-app-e2e').root).toEqual(
-        'apps/my-app-e2e'
+      expect(readProjectConfiguration(tree, name).root).toEqual(name);
+      expect(readProjectConfiguration(tree, `${name}-e2e`).root).toEqual(
+        `${name}-e2e`
       );
     });
 
     it('should generate an unstyled component page', async () => {
+      const name = uniq();
       await applicationGenerator(tree, {
-        name: 'testApp',
+        name,
         style: 'none',
         appDir: false,
+        src: false,
+        projectNameAndRootFormat: 'as-provided',
       });
 
-      const content = tree.read('apps/test-app/pages/index.tsx').toString();
+      const content = tree.read(`${name}/pages/index.tsx`).toString();
 
       expect(content).not.toContain('import styles from');
       expect(content).not.toContain('const StyledPage');
@@ -162,22 +183,24 @@ describe('app', () => {
 
   describe('--style scss', () => {
     it('should generate scss styles', async () => {
+      const name = uniq();
       await applicationGenerator(tree, {
-        name: 'myApp',
+        name,
         style: 'scss',
+        projectNameAndRootFormat: 'as-provided',
       });
 
-      expect(tree.exists('apps/my-app/app/page.module.scss')).toBeTruthy();
-      expect(tree.exists('apps/my-app/app/global.css')).toBeTruthy();
+      expect(tree.exists(`${name}/src/app/page.module.scss`)).toBeTruthy();
+      expect(tree.exists(`${name}/src/app/global.css`)).toBeTruthy();
 
-      const indexContent = tree.read('apps/my-app/app/page.tsx', 'utf-8');
+      const indexContent = tree.read(`${name}/src/app/page.tsx`, 'utf-8');
       expect(indexContent).toContain(`import styles from './page.module.scss'`);
-      expect(tree.read('apps/my-app/app/layout.tsx', 'utf-8'))
+      expect(tree.read(`${name}/src/app/layout.tsx`, 'utf-8'))
         .toMatchInlineSnapshot(`
         "import './global.css';
 
         export const metadata = {
-          title: 'Welcome to my-app',
+          title: 'Welcome to ${name}',
           description: 'Generated by create-nx-workspace',
         };
 
@@ -198,23 +221,25 @@ describe('app', () => {
   });
 
   describe('--style less', () => {
-    it('should generate scss styles', async () => {
+    it('should generate less styles', async () => {
+      const name = uniq();
       await applicationGenerator(tree, {
-        name: 'myApp',
+        name,
         style: 'less',
+        projectNameAndRootFormat: 'as-provided',
       });
 
-      expect(tree.exists('apps/my-app/app/page.module.less')).toBeTruthy();
-      expect(tree.exists('apps/my-app/app/global.less')).toBeTruthy();
+      expect(tree.exists(`${name}/src/app/page.module.less`)).toBeTruthy();
+      expect(tree.exists(`${name}/src/app/global.less`)).toBeTruthy();
 
-      const indexContent = tree.read('apps/my-app/app/page.tsx', 'utf-8');
+      const indexContent = tree.read(`${name}/src/app/page.tsx`, 'utf-8');
       expect(indexContent).toContain(`import styles from './page.module.less'`);
-      expect(tree.read('apps/my-app/app/layout.tsx', 'utf-8'))
+      expect(tree.read(`${name}/src/app/layout.tsx`, 'utf-8'))
         .toMatchInlineSnapshot(`
         "import './global.less';
 
         export const metadata = {
-          title: 'Welcome to my-app',
+          title: 'Welcome to ${name}',
           description: 'Generated by create-nx-workspace',
         };
 
@@ -234,37 +259,24 @@ describe('app', () => {
     });
   });
 
-  describe('--style styl', () => {
-    it('should generate scss styles', async () => {
-      await applicationGenerator(tree, {
-        name: 'myApp',
-        style: 'styl',
-      });
-
-      expect(tree.exists('apps/my-app/app/page.module.styl')).toBeTruthy();
-      expect(tree.exists('apps/my-app/app/global.styl')).toBeTruthy();
-
-      const indexContent = tree.read('apps/my-app/app/page.tsx', 'utf-8');
-      expect(indexContent).toContain(`import styles from './page.module.styl'`);
-    });
-  });
-
   describe('--style styled-components', () => {
-    it('should generate styles', async () => {
+    it('should generate styled-components styles', async () => {
+      const name = uniq();
       await applicationGenerator(tree, {
-        name: 'myApp',
+        name,
         style: 'styled-components',
+        projectNameAndRootFormat: 'as-provided',
       });
 
       expect(
-        tree.exists('apps/my-app/app/page.module.styled-components')
+        tree.exists(`${name}/src/app/page.module.styled-components`)
       ).toBeFalsy();
-      expect(tree.exists('apps/my-app/app/global.css')).toBeTruthy();
+      expect(tree.exists(`${name}/src/app/global.css`)).toBeTruthy();
 
-      const indexContent = tree.read('apps/my-app/app/page.tsx', 'utf-8');
+      const indexContent = tree.read(`${name}/src/app/page.tsx`, 'utf-8');
       expect(indexContent).not.toContain(`import styles from './page.module`);
       expect(indexContent).toContain(`import styled from 'styled-components'`);
-      expect(tree.read('apps/my-app/app/layout.tsx', 'utf-8'))
+      expect(tree.read(`${name}/src/app/layout.tsx`, 'utf-8'))
         .toMatchInlineSnapshot(`
         "import './global.css';
         import { StyledComponentsRegistry } from './registry';
@@ -289,7 +301,7 @@ describe('app', () => {
         }
         "
       `);
-      expect(tree.read('apps/my-app/app/registry.tsx', 'utf-8'))
+      expect(tree.read(`${name}/src/app/registry.tsx`, 'utf-8'))
         .toMatchInlineSnapshot(`
         "'use client';
 
@@ -329,52 +341,40 @@ describe('app', () => {
     });
   });
 
-  describe('--style @emotion/styled', () => {
-    it('should generate styles', async () => {
+  // Support for emotion is still being worked on disable for now: https://nextjs.org/docs/app/building-your-application/styling/css-in-js
+  xdescribe('--style @emotion/styled', () => {
+    it('should generate  @emotion/styled styles', async () => {
+      const name = uniq();
+
       await applicationGenerator(tree, {
-        name: 'myApp',
+        name,
         style: '@emotion/styled',
+        projectNameAndRootFormat: 'as-provided',
       });
 
       expect(
-        tree.exists('apps/my-app/app/page.module.styled-components')
+        tree.exists(`${name}/src/app/page.module.styled-components`)
       ).toBeFalsy();
-      expect(tree.exists('apps/my-app/app/global.css')).toBeTruthy();
+      expect(tree.exists(`${name}/src/app/global.css`)).toBeTruthy();
 
-      const indexContent = tree.read('apps/my-app/app/page.tsx', 'utf-8');
+      const indexContent = tree.read(`${name}/src/app/page.tsx`, 'utf-8');
       expect(indexContent).not.toContain(`import styles from './page.module`);
       expect(indexContent).toContain(`import styled from '@emotion/styled'`);
-      expect(tree.read('apps/my-app/app/layout.tsx', 'utf-8'))
-        .toMatchInlineSnapshot(`
-        "import './global.css';
-
-        export const metadata = {
-          title: 'Welcome to my-app',
-          description: 'Generated by create-nx-workspace',
-        };
-
-        export default function RootLayout({
-          children,
-        }: {
-          children: React.ReactNode;
-        }) {
-          return (
-            <html lang="en">
-              <body>{children}</body>
-            </html>
-          );
-        }
-        "
-      `);
+      expect(
+        tree.read(`${name}/src/app/layout.tsx`, 'utf-8')
+      ).toMatchInlineSnapshot(``);
     });
 
     it('should add jsxImportSource in tsconfig.json', async () => {
+      const name = uniq();
+
       await applicationGenerator(tree, {
-        name: 'myApp',
+        name,
         style: '@emotion/styled',
+        projectNameAndRootFormat: 'as-provided',
       });
 
-      const tsconfigJson = readJson(tree, 'apps/my-app/tsconfig.json');
+      const tsconfigJson = readJson(tree, `${name}/tsconfig.json`);
 
       expect(tsconfigJson.compilerOptions['jsxImportSource']).toEqual(
         '@emotion/react'
@@ -384,22 +384,25 @@ describe('app', () => {
 
   describe('--style styled-jsx', () => {
     it('should use <style jsx> in index page', async () => {
+      const name = 'my-app';
+
       await applicationGenerator(tree, {
-        name: 'myApp',
+        name,
         style: 'styled-jsx',
+        projectNameAndRootFormat: 'as-provided',
       });
 
-      const indexContent = tree.read('apps/my-app/app/page.tsx', 'utf-8');
+      const indexContent = tree.read(`${name}/src/app/page.tsx`, 'utf-8');
 
       expect(indexContent).toMatchSnapshot();
-      expect(tree.exists('apps/my-app/app/page.module.styled-jsx')).toBeFalsy();
-      expect(tree.exists('apps/my-app/app/global.css')).toBeTruthy();
+      expect(tree.exists(`${name}/src/app/page.module.styled-jsx`)).toBeFalsy();
+      expect(tree.exists(`${name}/src/app/global.css`)).toBeTruthy();
 
       expect(indexContent).not.toContain(`import styles from './page.module`);
       expect(indexContent).not.toContain(
         `import styled from 'styled-components'`
       );
-      expect(tree.read('apps/my-app/app/layout.tsx', 'utf-8'))
+      expect(tree.read(`${name}/src/app/layout.tsx`, 'utf-8'))
         .toMatchInlineSnapshot(`
         "import './global.css';
         import { StyledJsxRegistry } from './registry';
@@ -419,7 +422,7 @@ describe('app', () => {
         }
         "
       `);
-      expect(tree.read('apps/my-app/app/registry.tsx', 'utf-8'))
+      expect(tree.read(`${name}/src/app/registry.tsx`, 'utf-8'))
         .toMatchInlineSnapshot(`
         "'use client';
 
@@ -446,110 +449,152 @@ describe('app', () => {
   });
 
   it('should setup jest with tsx support', async () => {
+    const name = uniq();
+
     await applicationGenerator(tree, {
-      name: 'my-app',
+      name,
       style: 'css',
+      projectNameAndRootFormat: 'as-provided',
     });
 
-    expect(tree.read('apps/my-app/jest.config.ts', 'utf-8')).toContain(
+    expect(tree.read(`${name}/jest.config.ts`, 'utf-8')).toContain(
       `moduleFileExtensions: ['ts', 'tsx', 'js', 'jsx'],`
     );
   });
 
   it('should setup jest with SVGR support', async () => {
+    const name = uniq();
+
     await applicationGenerator(tree, {
-      name: 'my-app',
+      name,
       style: 'css',
+      projectNameAndRootFormat: 'as-provided',
     });
 
-    expect(tree.read('apps/my-app/jest.config.ts', 'utf-8')).toContain(
+    expect(tree.read(`${name}/jest.config.ts`, 'utf-8')).toContain(
       `'^(?!.*\\\\.(js|jsx|ts|tsx|css|json)$)': '@nx/react/plugins/jest'`
     );
   });
 
   it('should set up the nx next build builder', async () => {
+    const name = uniq();
+
     await applicationGenerator(tree, {
-      name: 'my-app',
+      name,
       style: 'css',
+      projectNameAndRootFormat: 'as-provided',
     });
 
-    const projectConfiguration = readProjectConfiguration(tree, 'my-app');
-    expect(projectConfiguration.targets.build.executor).toEqual(
-      '@nx/next:build'
-    );
-    expect(projectConfiguration.targets.build.options).toEqual({
-      outputPath: 'dist/apps/my-app',
-    });
-  });
+    expect(tree.read(join(name, 'next.config.js'), 'utf-8'))
+      .toMatchInlineSnapshot(`
+      "//@ts-check
 
-  it('should set up the nx next server builder', async () => {
-    await applicationGenerator(tree, {
-      name: 'my-app',
-      style: 'css',
-    });
+      // eslint-disable-next-line @typescript-eslint/no-var-requires
+      const { composePlugins, withNx } = require('@nx/next');
 
-    const projectConfiguration = readProjectConfiguration(tree, 'my-app');
-    expect(projectConfiguration.targets.serve.executor).toEqual(
-      '@nx/next:server'
-    );
-    expect(projectConfiguration.targets.serve.options).toEqual({
-      buildTarget: 'my-app:build',
-      dev: true,
-    });
-    expect(projectConfiguration.targets.serve.configurations).toEqual({
-      development: {
-        buildTarget: 'my-app:build:development',
-        dev: true,
-      },
-      production: { dev: false, buildTarget: 'my-app:build:production' },
-    });
-  });
+      /**
+       * @type {import('@nx/next/plugins/with-nx').WithNxOptions}
+       **/
+      const nextConfig = {
+        nx: {
+          // Set this to true if you would like to use SVGR
+          // See: https://github.com/gregberge/svgr
+          svgr: false,
+        },
+      };
 
-  it('should set up the nx next export builder', async () => {
-    await applicationGenerator(tree, {
-      name: 'my-app',
-      style: 'css',
-    });
+      const plugins = [
+        // Add more Next.js plugins to this list if needed.
+        withNx,
+      ];
 
-    const projectConfiguration = readProjectConfiguration(tree, 'my-app');
-    expect(projectConfiguration.targets.export.executor).toEqual(
-      '@nx/next:export'
-    );
-    expect(projectConfiguration.targets.export.options).toEqual({
-      buildTarget: 'my-app:build:production',
-    });
+      module.exports = composePlugins(...plugins)(nextConfig);
+      "
+    `);
   });
 
   describe('--unit-test-runner none', () => {
     it('should not generate test configuration', async () => {
+      const name = uniq();
       await applicationGenerator(tree, {
-        name: 'myApp',
+        name,
         style: 'css',
         unitTestRunner: 'none',
+        projectNameAndRootFormat: 'as-provided',
       });
       expect(tree.exists('jest.config.ts')).toBeFalsy();
-      expect(tree.exists('apps/my-app/specs/index.spec.tsx')).toBeFalsy();
+      expect(tree.exists(`${name}/specs/index.spec.tsx`)).toBeFalsy();
     });
   });
 
   describe('--e2e-test-runner none', () => {
     it('should not generate test configuration', async () => {
+      const name = uniq();
+
       await applicationGenerator(tree, {
-        name: 'myApp',
+        name,
         style: 'css',
         e2eTestRunner: 'none',
+        projectNameAndRootFormat: 'as-provided',
       });
-      expect(tree.exists('apps/my-app-e2e')).toBeFalsy();
+      expect(tree.exists(`${name}-e2e`)).toBeFalsy();
+    });
+  });
+
+  describe('--e2e-test-runner cypress', () => {
+    it('should generate e2e-ci targetDefaults', async () => {
+      const name = uniq();
+
+      await applicationGenerator(tree, {
+        name,
+        style: 'css',
+        e2eTestRunner: 'cypress',
+        projectNameAndRootFormat: 'as-provided',
+        addPlugin: true,
+      });
+      expect(readNxJson(tree).targetDefaults['e2e-ci--**/*'])
+        .toMatchInlineSnapshot(`
+        {
+          "dependsOn": [
+            "^build",
+          ],
+        }
+      `);
+    });
+  });
+
+  describe('--e2e-test-runner playwright', () => {
+    it('should generate e2e-ci targetDefaults', async () => {
+      const name = uniq();
+
+      await applicationGenerator(tree, {
+        name,
+        style: 'css',
+        e2eTestRunner: 'playwright',
+        projectNameAndRootFormat: 'as-provided',
+        addPlugin: true,
+      });
+      expect(readNxJson(tree).targetDefaults['e2e-ci--**/*'])
+        .toMatchInlineSnapshot(`
+        {
+          "dependsOn": [
+            "^build",
+          ],
+        }
+      `);
     });
   });
 
   it('should generate functional components by default', async () => {
+    const name = uniq();
+
     await applicationGenerator(tree, {
-      name: 'myApp',
+      name,
       style: 'css',
+      projectNameAndRootFormat: 'as-provided',
     });
 
-    const appContent = tree.read('apps/my-app/app/page.tsx', 'utf-8');
+    const appContent = tree.read(`${name}/src/app/page.tsx`, 'utf-8');
 
     expect(appContent).not.toMatch(/extends Component/);
   });
@@ -557,9 +602,12 @@ describe('app', () => {
   describe('--linter', () => {
     describe('default (eslint)', () => {
       it('should add .eslintrc.json and dependencies', async () => {
+        const name = uniq();
+
         await applicationGenerator(tree, {
-          name: 'myApp',
+          name,
           style: 'css',
+          projectNameAndRootFormat: 'as-provided',
         });
 
         const packageJson = readJson(tree, '/package.json');
@@ -570,28 +618,20 @@ describe('app', () => {
           },
         });
 
-        const eslintJson = readJson(tree, '/apps/my-app/.eslintrc.json');
+        const eslintJson = readJson(tree, `${name}/.eslintrc.json`);
         expect(eslintJson).toMatchInlineSnapshot(`
           {
             "extends": [
               "plugin:@nx/react-typescript",
               "next",
               "next/core-web-vitals",
-              "../../.eslintrc.json",
+              "../.eslintrc.json",
             ],
             "ignorePatterns": [
               "!**/*",
               ".next/**/*",
             ],
             "overrides": [
-              {
-                "files": [
-                  "*.*",
-                ],
-                "rules": {
-                  "@next/next/no-html-link-for-pages": "off",
-                },
-              },
               {
                 "files": [
                   "*.ts",
@@ -602,7 +642,7 @@ describe('app', () => {
                 "rules": {
                   "@next/next/no-html-link-for-pages": [
                     "error",
-                    "apps/my-app/pages",
+                    "${name}/pages",
                   ],
                 },
               },
@@ -639,11 +679,14 @@ describe('app', () => {
 
     describe('root level', () => {
       it('should adjust eslint config for root level projects', async () => {
+        const name = uniq();
+
         await applicationGenerator(tree, {
-          name: 'testApp',
+          name,
           style: 'css',
           appDir: true,
           rootProject: true,
+          projectNameAndRootFormat: 'as-provided',
         });
 
         const eslintJSON = readJson(tree, '.eslintrc.json');
@@ -659,28 +702,148 @@ describe('app', () => {
         `
         );
       });
+
+      it('should scope tsconfig to the src/ project directory', async () => {
+        const name = uniq();
+
+        await applicationGenerator(tree, {
+          name,
+          style: 'css',
+          appDir: true,
+          rootProject: true,
+          projectNameAndRootFormat: 'as-provided',
+          src: true,
+        });
+
+        const tsconfigJSON = readJson(tree, `tsconfig.json`);
+
+        expect(tsconfigJSON.include).toEqual([
+          'src/**/*.ts',
+          'src/**/*.tsx',
+          'src/**/*.js',
+          'src/**/*.jsx',
+          '.next/types/**/*.ts',
+          `dist/${name}/.next/types/**/*.ts`,
+          'next-env.d.ts',
+        ]);
+      });
+
+      it('should scope tsconfig to the app/ project directory', async () => {
+        const name = uniq();
+
+        await applicationGenerator(tree, {
+          name,
+          style: 'css',
+          appDir: true,
+          rootProject: true,
+          projectNameAndRootFormat: 'as-provided',
+          src: false,
+        });
+
+        const tsconfigJSON = readJson(tree, `tsconfig.json`);
+
+        expect(tsconfigJSON.include).toEqual([
+          'app/**/*.ts',
+          'app/**/*.tsx',
+          'app/**/*.js',
+          'app/**/*.jsx',
+          '.next/types/**/*.ts',
+          `dist/${name}/.next/types/**/*.ts`,
+          'next-env.d.ts',
+        ]);
+      });
+
+      it('should scope tsconfig to the pages/ project directory', async () => {
+        const name = uniq();
+
+        await applicationGenerator(tree, {
+          name,
+          style: 'css',
+          appDir: false,
+          rootProject: true,
+          projectNameAndRootFormat: 'as-provided',
+          src: false,
+        });
+
+        const tsconfigJSON = readJson(tree, `tsconfig.json`);
+        expect(tsconfigJSON.include).toEqual([
+          'pages/**/*.ts',
+          'pages/**/*.tsx',
+          'pages/**/*.js',
+          'pages/**/*.jsx',
+          'next-env.d.ts',
+        ]);
+      });
     });
   });
 
   describe('--js', () => {
     it('generates JS files', async () => {
+      const name = uniq();
+
       await applicationGenerator(tree, {
-        name: 'myApp',
+        name,
         style: 'css',
         js: true,
       });
 
-      expect(tree.exists('apps/my-app/app/page.js')).toBeTruthy();
-      expect(tree.exists('apps/my-app/specs/index.spec.js')).toBeTruthy();
-      expect(tree.exists('apps/my-app/index.d.js')).toBeFalsy();
-      expect(tree.exists('apps/my-app/index.d.ts')).toBeFalsy();
+      expect(tree.exists(`${name}/src/app/page.js`)).toBeTruthy();
+      expect(tree.exists(`${name}/specs/index.spec.js`)).toBeTruthy();
+      expect(tree.exists(`${name}/index.d.js`)).toBeFalsy();
+      expect(tree.exists(`${name}/index.d.ts`)).toBeFalsy();
 
-      const tsConfig = readJson(tree, 'apps/my-app/tsconfig.json');
+      const tsConfig = readJson(tree, `${name}/tsconfig.json`);
       expect(tsConfig.compilerOptions.allowJs).toEqual(true);
 
-      const tsConfigApp = readJson(tree, 'apps/my-app/tsconfig.json');
+      const tsConfigApp = readJson(tree, `${name}/tsconfig.json`);
       expect(tsConfigApp.include).toContain('**/*.js');
       expect(tsConfigApp.exclude).not.toContain('**/*.spec.js');
     });
   });
 });
+
+describe('app (legacy)', () => {
+  let tree: Tree;
+  let originalEnv;
+
+  const schema: Schema = {
+    name: 'app',
+    appDir: true,
+    unitTestRunner: 'jest',
+    style: 'css',
+    e2eTestRunner: 'cypress',
+    projectNameAndRootFormat: 'as-provided',
+  };
+
+  beforeAll(() => {
+    tree = createTreeWithEmptyWorkspace();
+    originalEnv = process.env['NX_ADD_PLUGINS'];
+    process.env['NX_ADD_PLUGINS'] = 'false';
+  });
+
+  afterAll(() => {
+    if (originalEnv) {
+      process.env['NX_ADD_PLUGINS'] = originalEnv;
+    } else {
+      delete process.env['NX_ADD_PLUGINS'];
+    }
+  });
+
+  it('should generate build serve and export targets', async () => {
+    const name = uniq();
+
+    await applicationGenerator(tree, {
+      ...schema,
+      name,
+    });
+
+    const projectConfiguration = readProjectConfiguration(tree, name);
+    expect(projectConfiguration.targets.build).toBeDefined();
+    expect(projectConfiguration.targets.serve).toBeDefined();
+    expect(projectConfiguration.targets.export).toBeDefined();
+  });
+});
+
+function uniq() {
+  return `str-${(Math.random() * 10000).toFixed(0)}`;
+}

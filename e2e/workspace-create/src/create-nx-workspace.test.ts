@@ -32,6 +32,8 @@ describe('create-nx-workspace', () => {
       standaloneApi: false,
       routing: false,
       e2eTestRunner: 'none',
+      bundler: 'webpack',
+      ssr: false,
     });
 
     checkFilesExist('package.json');
@@ -52,6 +54,8 @@ describe('create-nx-workspace', () => {
       standaloneApi: true,
       routing: true,
       e2eTestRunner: 'none',
+      bundler: 'webpack',
+      ssr: false,
     });
 
     checkFilesExist('package.json');
@@ -106,12 +110,7 @@ describe('create-nx-workspace', () => {
       packageManager,
     });
 
-    checkFilesExist(
-      'package.json',
-      packageManagerLockFile[packageManager],
-      'apps/.gitkeep',
-      'libs/.gitkeep'
-    );
+    checkFilesExist('package.json', packageManagerLockFile[packageManager]);
 
     expectNoAngularDevkit();
   });
@@ -149,14 +148,15 @@ describe('create-nx-workspace', () => {
       standaloneApi: false,
       routing: true,
       e2eTestRunner: 'none',
+      bundler: 'webpack',
+      ssr: false,
     });
     expectCodeIsFormatted();
   });
 
   it('should fail correctly when preset errors', () => {
     // Using Angular Preset as the example here to test
-    // It will error when npmScope is of form `<char>-<num>-<char>`
-    // Due to a validation error Angular will throw.
+    // It will error when prefix is not valid
     const wsName = uniq('angular-1-test');
     const appName = uniq('app');
     expect(() =>
@@ -168,6 +168,9 @@ describe('create-nx-workspace', () => {
         standaloneApi: false,
         routing: false,
         e2eTestRunner: 'none',
+        bundler: 'webpack',
+        ssr: false,
+        prefix: '1-one',
       })
     ).toThrow();
   });
@@ -220,11 +223,12 @@ describe('create-nx-workspace', () => {
       style: 'css',
       appName,
       nextAppDir: false,
+      nextSrcDir: true,
       packageManager,
       e2eTestRunner: 'none',
     });
 
-    checkFilesExist(`apps/${appName}/pages/index.tsx`);
+    checkFilesExist(`apps/${appName}/src/pages/index.tsx`);
 
     expectNoAngularDevkit();
     expectCodeIsFormatted();
@@ -237,12 +241,13 @@ describe('create-nx-workspace', () => {
       preset: 'nextjs-standalone',
       style: 'css',
       nextAppDir: true,
+      nextSrcDir: true,
       appName,
       packageManager,
       e2eTestRunner: 'none',
     });
 
-    checkFilesExist('app/page.tsx');
+    checkFilesExist('src/app/page.tsx');
 
     expectNoAngularDevkit();
     expectCodeIsFormatted();
@@ -255,12 +260,13 @@ describe('create-nx-workspace', () => {
       preset: 'nextjs-standalone',
       style: 'css',
       nextAppDir: false,
+      nextSrcDir: true,
       appName,
       packageManager,
       e2eTestRunner: 'none',
     });
 
-    checkFilesExist('pages/index.tsx');
+    checkFilesExist('src/pages/index.tsx');
 
     expectNoAngularDevkit();
     expectCodeIsFormatted();
@@ -301,6 +307,7 @@ describe('create-nx-workspace', () => {
       preset: 'react-native',
       appName,
       packageManager: 'npm',
+      e2eTestRunner: 'none',
     });
 
     expectNoAngularDevkit();
@@ -314,6 +321,7 @@ describe('create-nx-workspace', () => {
       preset: 'expo',
       appName,
       packageManager: 'npm',
+      e2eTestRunner: 'none',
     });
 
     expectNoAngularDevkit();
@@ -367,19 +375,8 @@ describe('create-nx-workspace', () => {
     process.env.SELECTED_PM = packageManager;
   });
 
-  it('should return error when ci workflow is selected but no cloud is set up', () => {
-    const wsName = uniq('github');
-    runCreateWorkspace(wsName, {
-      preset: 'apps',
-      packageManager,
-      ci: 'circleci',
-    });
-    checkFilesExist('package.json');
-    checkFilesDoNotExist('.circleci/config.yml');
-  });
-
   describe('Use detected package manager', () => {
-    function setupProject(envPm: 'npm' | 'yarn' | 'pnpm') {
+    function setupProject(envPm: 'npm' | 'yarn' | 'pnpm' | 'bun') {
       process.env.SELECTED_PM = envPm;
       runCreateWorkspace(uniq('pm'), {
         preset: 'apps',
@@ -394,7 +391,8 @@ describe('create-nx-workspace', () => {
         checkFilesExist(packageManagerLockFile['npm']);
         checkFilesDoNotExist(
           packageManagerLockFile['yarn'],
-          packageManagerLockFile['pnpm']
+          packageManagerLockFile['pnpm'],
+          packageManagerLockFile['bun']
         );
         process.env.SELECTED_PM = packageManager;
       }, 90000);
@@ -406,7 +404,21 @@ describe('create-nx-workspace', () => {
         checkFilesExist(packageManagerLockFile['pnpm']);
         checkFilesDoNotExist(
           packageManagerLockFile['yarn'],
-          packageManagerLockFile['npm']
+          packageManagerLockFile['npm'],
+          packageManagerLockFile['bun']
+        );
+        process.env.SELECTED_PM = packageManager;
+      }, 90000);
+    }
+
+    if (packageManager === 'bun') {
+      it('should use bun when invoked with bunx', () => {
+        setupProject('bun');
+        checkFilesExist(packageManagerLockFile['bun']);
+        checkFilesDoNotExist(
+          packageManagerLockFile['yarn'],
+          packageManagerLockFile['npm'],
+          packageManagerLockFile['pnpm']
         );
         process.env.SELECTED_PM = packageManager;
       }, 90000);
@@ -419,11 +431,76 @@ describe('create-nx-workspace', () => {
         checkFilesExist(packageManagerLockFile['yarn']);
         checkFilesDoNotExist(
           packageManagerLockFile['pnpm'],
-          packageManagerLockFile['npm']
+          packageManagerLockFile['npm'],
+          packageManagerLockFile['bun']
         );
         process.env.SELECTED_PM = packageManager;
       }, 90000);
     }
+  });
+
+  it('should create a workspace with a single vue app at the root', () => {
+    const wsName = uniq('vue');
+
+    runCreateWorkspace(wsName, {
+      preset: 'vue-standalone',
+      appName: wsName,
+      style: 'css',
+      packageManager,
+      e2eTestRunner: 'none',
+    });
+
+    checkFilesExist('package.json');
+    checkFilesExist('project.json');
+    checkFilesExist('index.html');
+    checkFilesExist('src/main.ts');
+    checkFilesExist('src/app/App.vue');
+    expectCodeIsFormatted();
+  });
+
+  it('should be able to create a vue monorepo', () => {
+    const wsName = uniq('vue');
+    const appName = uniq('app');
+    runCreateWorkspace(wsName, {
+      preset: 'vue-monorepo',
+      appName,
+      style: 'css',
+      packageManager,
+      e2eTestRunner: 'none',
+    });
+    expectCodeIsFormatted();
+  });
+
+  it('should create a workspace with a single nuxt app at the root', () => {
+    const wsName = uniq('nuxt');
+
+    runCreateWorkspace(wsName, {
+      preset: 'nuxt-standalone',
+      appName: wsName,
+      style: 'css',
+      packageManager,
+      e2eTestRunner: 'none',
+    });
+
+    checkFilesExist('package.json');
+    checkFilesExist('project.json');
+    checkFilesExist('nuxt.config.ts');
+    checkFilesExist('src/app.vue');
+    checkFilesExist('src/pages/index.vue');
+    expectCodeIsFormatted();
+  });
+
+  it('should be able to create a nuxt monorepo', () => {
+    const wsName = uniq('nuxt');
+    const appName = uniq('app');
+    runCreateWorkspace(wsName, {
+      preset: 'nuxt',
+      appName,
+      style: 'css',
+      packageManager,
+      e2eTestRunner: 'none',
+    });
+    expectCodeIsFormatted();
   });
 });
 

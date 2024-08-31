@@ -27,7 +27,10 @@ export async function runOne(
     string,
     (TargetDependencyConfig | string)[]
   > = {},
-  extraOptions = { excludeTaskDependencies: false, loadDotEnvFiles: true } as {
+  extraOptions = {
+    excludeTaskDependencies: args.excludeTaskDependencies,
+    loadDotEnvFiles: process.env.NX_LOAD_DOT_ENV_FILES !== 'false',
+  } as {
     excludeTaskDependencies: boolean;
     loadDotEnvFiles: boolean;
   }
@@ -37,7 +40,7 @@ export async function runOne(
   workspaceConfigurationCheck();
 
   const nxJson = readNxJson();
-  const projectGraph = await createProjectGraphAsync({ exitOnError: true });
+  const projectGraph = await createProjectGraphAsync();
 
   const opts = parseRunOneOptions(cwd, args, projectGraph, nxJson);
 
@@ -51,9 +54,7 @@ export async function runOne(
     { printWarnings: args.graph !== 'stdout' },
     nxJson
   );
-  if (nxArgs.verbose) {
-    process.env.NX_VERBOSE_LOGGING = 'true';
-  }
+
   if (nxArgs.help) {
     await (await import('./run')).printTargetRunHelp(opts, workspaceRoot);
     process.exit(0);
@@ -69,7 +70,7 @@ export async function runOne(
 
     return await generateGraph(
       {
-        watch: false,
+        watch: true,
         open: true,
         view: 'tasks',
         targets: nxArgs.targets,
@@ -79,7 +80,7 @@ export async function runOne(
       projectNames
     );
   } else {
-    await runCommand(
+    const status = await runCommand(
       projects,
       projectGraph,
       { nxJson },
@@ -89,6 +90,7 @@ export async function runOne(
       extraTargetDependencies,
       extraOptions
     );
+    process.exit(status);
   }
 }
 
@@ -132,7 +134,7 @@ function parseRunOneOptions(
   let target;
   let configuration;
 
-  if (parsedArgs['project:target:configuration'].indexOf(':') > -1) {
+  if (parsedArgs['project:target:configuration']?.indexOf(':') > -1) {
     // run case
     [project, target, configuration] = splitTarget(
       parsedArgs['project:target:configuration'],
@@ -144,7 +146,7 @@ function parseRunOneOptions(
       project = defaultProjectName;
     }
   } else {
-    target = parsedArgs['project:target:configuration'];
+    target = parsedArgs.target ?? parsedArgs['project:target:configuration'];
   }
   if (parsedArgs.project) {
     project = parsedArgs.project;

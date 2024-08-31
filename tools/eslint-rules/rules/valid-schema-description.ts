@@ -10,7 +10,7 @@ export const rule = ESLintUtils.RuleCreator(() => __filename)({
     type: 'problem',
     docs: {
       description: `Ensures that nx schemas contain valid descriptions in order to provide consistent --help output for commands`,
-      recommended: 'error',
+      recommended: 'recommended',
     },
     fixable: 'code',
     schema: [],
@@ -24,7 +24,7 @@ export const rule = ESLintUtils.RuleCreator(() => __filename)({
   defaultOptions: [],
   create(context) {
     // jsonc-eslint-parser adds this property to parserServices where appropriate
-    if (!(context.parserServices as any).isJSON) {
+    if (!(context.sourceCode.parserServices as any).isJSON) {
       return {};
     }
     return {

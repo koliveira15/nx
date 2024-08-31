@@ -1,5 +1,5 @@
 import type { ProjectNameAndRootFormat } from '@nx/devkit/src/generators/project-name-and-root-utils';
-import type { Linter } from '@nx/linter';
+import type { Linter, LinterType } from '@nx/eslint';
 
 export interface Schema {
   name: string;
@@ -9,7 +9,7 @@ export interface Schema {
   projectNameAndRootFormat?: ProjectNameAndRootFormat;
   unitTestRunner?: 'jest' | 'none';
   e2eTestRunner?: 'jest' | 'none';
-  linter?: Linter;
+  linter?: Linter | LinterType;
   tags?: string;
   frontendProject?: string;
   swcJest?: boolean;
@@ -25,6 +25,7 @@ export interface Schema {
   rootProject?: boolean;
   docker?: boolean;
   isNest?: boolean;
+  addPlugin?: boolean;
 }
 
 export type NodeJsFrameWorks = 'express' | 'koa' | 'fastify' | 'nest' | 'none';

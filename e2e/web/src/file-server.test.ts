@@ -5,15 +5,17 @@ import {
   promisifiedTreeKill,
   runCLI,
   runCommandUntil,
-  setMaxWorkers,
   uniq,
-  updateProjectConfig,
+  updateFile,
+  updateJson,
 } from '@nx/e2e/utils';
+import { join } from 'path';
 
 describe('file-server', () => {
   beforeAll(() => {
     newProject({ name: uniq('fileserver') });
   });
+
   afterAll(() => cleanupProject());
 
   it('should serve folder of files', async () => {
@@ -21,9 +23,13 @@ describe('file-server', () => {
     const port = 4301;
 
     runCLI(`generate @nx/web:app ${appName} --no-interactive`);
-    await setMaxWorkers();
-    await updateProjectConfig(appName, (config) => {
-      config.targets['serve'].executor = '@nx/web:file-server';
+    updateJson(join('apps', appName, 'project.json'), (config) => {
+      config.targets['serve'] = {
+        executor: '@nx/web:file-server',
+        options: {
+          buildTarget: 'build',
+        },
+      };
       return config;
     });
 
@@ -42,50 +48,55 @@ describe('file-server', () => {
     }
   }, 300_000);
 
-  it('should setup and serve static files from app', async () => {
-    const ngAppName = uniq('ng-app');
-    const reactAppName = uniq('react-app');
+  it('should read from directory from outputs if outputPath is not specified', async () => {
+    const appName = uniq('app');
+    const port = 4301;
 
-    runCLI(
-      `generate @nx/angular:app ${ngAppName} --no-interactive --e2eTestRunner=none`
+    runCLI(`generate @nx/web:app ${appName} --no-interactive`);
+    // Used to copy index.html rather than the normal webpack build.
+    updateFile(
+      `apps/${appName}/copy-index.js`,
+      `
+      const fs = require('node:fs');
+      const path = require('node:path');
+      fs.mkdirSync(path.join(__dirname, '../../dist/foobar'), { recursive: true });
+      fs.copyFileSync(
+        path.join(__dirname, './src/index.html'),
+        path.join(__dirname, '../../dist/foobar/index.html')
+      );
+    `
     );
-    runCLI(
-      `generate @nx/react:app ${reactAppName} --no-interactive --e2eTestRunner=none`
-    );
-    runCLI(
-      `generate @nx/web:static-config --buildTarget=${ngAppName}:build --no-interactive`
-    );
-    runCLI(
-      `generate @nx/web:static-config --buildTarget=${reactAppName}:build --targetName=custom-serve-static --no-interactive`
-    );
-    await setMaxWorkers();
+    updateJson(join('apps', appName, 'project.json'), (config) => {
+      // Point to same path as output.path in webpack config.
+      config.targets['build'] = {
+        command: `node copy-index.js`,
+        outputs: [`{workspaceRoot}/dist/foobar`],
+        options: {
+          cwd: '{projectRoot}',
+        },
+      };
+      config.targets['serve'] = {
+        executor: '@nx/web:file-server',
+        options: {
+          buildTarget: 'build',
+        },
+      };
+      return config;
+    });
 
-    const port = 6200;
-
-    const ngServe = await runCommandUntil(
-      `serve-static ${ngAppName} --port=${port}`,
+    const p = await runCommandUntil(
+      `serve ${appName} --port=${port}`,
       (output) => {
-        return output.indexOf(`localhost:${port}`) > -1;
+        return (
+          output.indexOf(`localhost:${port}`) > -1 &&
+          output.indexOf(`dist/foobar`) > -1
+        );
       }
     );
 
     try {
-      await promisifiedTreeKill(ngServe.pid, 'SIGKILL');
+      await promisifiedTreeKill(p.pid, 'SIGKILL');
       await killPorts(port);
-    } catch {
-      // ignore
-    }
-
-    const reactServe = await runCommandUntil(
-      `custom-serve-static ${reactAppName} --port=${port + 1}`,
-      (output) => {
-        return output.indexOf(`localhost:${port + 1}`) > -1;
-      }
-    );
-
-    try {
-      await promisifiedTreeKill(reactServe.pid, 'SIGKILL');
-      await killPorts(port + 1);
     } catch {
       // ignore
     }

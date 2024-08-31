@@ -1,52 +1,71 @@
-import { TargetProjectLocator } from './target-project-locator';
-import { DependencyType, ProjectGraph } from '../../../../config/project-graph';
 import { join, relative } from 'path';
-import { workspaceRoot } from '../../../../utils/workspace-root';
-import { normalizePath } from '../../../../utils/path';
-import { CreateDependenciesContext } from '../../../../utils/nx-plugin';
+import { DependencyType } from '../../../../config/project-graph';
+import { ProjectConfiguration } from '../../../../config/workspace-json-project-json';
+import { CreateDependenciesContext } from '../../../../project-graph/plugins';
 import {
-  ProjectGraphDependencyWithFile,
+  RawProjectGraphDependency,
   validateDependency,
 } from '../../../../project-graph/project-graph-builder';
+import { normalizePath } from '../../../../utils/path';
+import { workspaceRoot } from '../../../../utils/workspace-root';
+import { TargetProjectLocator } from './target-project-locator';
 
-function isRoot(graph: ProjectGraph, projectName: string): boolean {
-  return graph.nodes[projectName]?.data?.root === '.';
+function isRoot(
+  projects: Record<string, ProjectConfiguration>,
+  projectName: string
+): boolean {
+  return projects[projectName]?.root === '.';
 }
 
 function convertImportToDependency(
   importExpr: string,
   sourceFile: string,
   source: string,
-  dependencyType: ProjectGraphDependencyWithFile['dependencyType'],
+  type: RawProjectGraphDependency['type'],
   targetProjectLocator: TargetProjectLocator
-): ProjectGraphDependencyWithFile {
-  const target =
-    targetProjectLocator.findProjectWithImport(importExpr, sourceFile) ??
-    `npm:${importExpr}`;
-
+): RawProjectGraphDependency | undefined {
+  const target = targetProjectLocator.findProjectFromImport(
+    importExpr,
+    sourceFile
+  );
+  if (!target) {
+    return;
+  }
   return {
     source,
     target,
     sourceFile,
-    dependencyType,
+    type,
   };
 }
 
-export function buildExplicitTypeScriptDependencies({
-  fileMap,
-  graph,
-}: CreateDependenciesContext): ProjectGraphDependencyWithFile[] {
-  const targetProjectLocator = new TargetProjectLocator(
-    graph.nodes as any,
-    graph.externalNodes
-  );
-  const res: ProjectGraphDependencyWithFile[] = [];
+export function buildExplicitTypeScriptDependencies(
+  ctx: CreateDependenciesContext,
+  targetProjectLocator: TargetProjectLocator
+): RawProjectGraphDependency[] {
+  const res: RawProjectGraphDependency[] = [];
 
   const filesToProcess: Record<string, string[]> = {};
 
-  const moduleExtensions = ['.ts', '.js', '.tsx', '.jsx', '.mts', '.mjs'];
+  const moduleExtensions = [
+    '.ts',
+    '.js',
+    '.tsx',
+    '.jsx',
+    '.mts',
+    '.mjs',
+    '.cjs',
+    '.cts',
+  ];
 
-  for (const [project, fileData] of Object.entries(fileMap)) {
+  // TODO: This can be removed when vue is stable
+  if (isVuePluginInstalled()) {
+    moduleExtensions.push('.vue');
+  }
+
+  for (const [project, fileData] of Object.entries(
+    ctx.fileMap.projectFileMap
+  )) {
     filesToProcess[project] ??= [];
     for (const { file } of fileData) {
       if (moduleExtensions.some((ext) => file.endsWith(ext))) {
@@ -66,6 +85,7 @@ export function buildExplicitTypeScriptDependencies({
     dynamicImportExpressions,
   } of imports) {
     const normalizedFilePath = normalizePath(relative(workspaceRoot, file));
+
     for (const importExpr of staticImportExpressions) {
       const dependency = convertImportToDependency(
         importExpr,
@@ -74,10 +94,14 @@ export function buildExplicitTypeScriptDependencies({
         DependencyType.static,
         targetProjectLocator
       );
+      if (!dependency) {
+        continue;
+      }
+
       // TODO: These edges technically should be allowed but we need to figure out how to separate config files out from root
       if (
-        isRoot(graph, dependency.source) ||
-        !isRoot(graph, dependency.target)
+        isRoot(ctx.projects, dependency.source) ||
+        !isRoot(ctx.projects, dependency.target)
       ) {
         res.push(dependency);
       }
@@ -90,16 +114,30 @@ export function buildExplicitTypeScriptDependencies({
         DependencyType.dynamic,
         targetProjectLocator
       );
+      if (!dependency) {
+        continue;
+      }
+
       // TODO: These edges technically should be allowed but we need to figure out how to separate config files out from root
       if (
-        isRoot(graph, dependency.source) ||
-        !isRoot(graph, dependency.target)
+        isRoot(ctx.projects, dependency.source) ||
+        !isRoot(ctx.projects, dependency.target)
       ) {
-        validateDependency(graph, dependency);
+        validateDependency(dependency, ctx);
         res.push(dependency);
       }
     }
   }
 
   return res;
+}
+
+function isVuePluginInstalled() {
+  try {
+    // nx-ignore-next-line
+    require.resolve('@nx/vue');
+    return true;
+  } catch {
+    return false;
+  }
 }

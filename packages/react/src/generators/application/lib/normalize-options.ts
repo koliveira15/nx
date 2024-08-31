@@ -1,8 +1,10 @@
-import { Tree, extractLayoutDirectory, names } from '@nx/devkit';
+import { Tree, extractLayoutDirectory, names, readNxJson } from '@nx/devkit';
 import { determineProjectNameAndRootOptions } from '@nx/devkit/src/generators/project-name-and-root-utils';
 import { assertValidStyle } from '../../../utils/assertion';
 import { NormalizedSchema, Schema } from '../schema';
 import { findFreePort } from './find-free-port';
+import { VitePluginOptions } from '@nx/vite/src/plugins/plugin';
+import { WebpackPluginOptions } from '@nx/webpack/src/plugins/plugin';
 
 export function normalizeDirectory(options: Schema) {
   options.directory = options.directory?.replace(/\\{1,2}/g, '/');
@@ -33,6 +35,14 @@ export async function normalizeOptions<T extends Schema = Schema>(
     rootProject: options.rootProject,
     callingGenerator,
   });
+
+  const nxJson = readNxJson(host);
+  const addPlugin =
+    process.env.NX_ADD_PLUGINS !== 'false' &&
+    nxJson.useInferencePlugins !== false;
+
+  options.addPlugin ??= addPlugin;
+
   options.rootProject = appProjectRoot === '.';
   options.projectNameAndRootFormat = projectNameAndRootFormat;
 
@@ -45,15 +55,11 @@ export async function normalizeOptions<T extends Schema = Schema>(
 
   const fileName = options.pascalCaseFiles ? 'App' : 'app';
 
-  const styledModule = /^(css|scss|less|styl|none)$/.test(options.style)
+  const styledModule = /^(css|scss|less|tailwind|none)$/.test(options.style)
     ? null
     : options.style;
 
   assertValidStyle(options.style);
-
-  if (options.bundler === 'vite') {
-    options.unitTestRunner = 'vitest';
-  }
 
   const normalized = {
     ...options,
@@ -73,10 +79,8 @@ export async function normalizeOptions<T extends Schema = Schema>(
   normalized.classComponent = normalized.classComponent ?? false;
   normalized.compiler = normalized.compiler ?? 'babel';
   normalized.bundler = normalized.bundler ?? 'webpack';
-  normalized.unitTestRunner =
-    normalized.unitTestRunner ??
-    (normalized.bundler === 'vite' ? 'vitest' : 'jest');
-  normalized.e2eTestRunner = normalized.e2eTestRunner ?? 'cypress';
+  normalized.unitTestRunner = normalized.unitTestRunner ?? 'jest';
+  normalized.e2eTestRunner = normalized.e2eTestRunner ?? 'playwright';
   normalized.inSourceTests = normalized.minimal || normalized.inSourceTests;
   normalized.devServerPort ??= findFreePort(host);
   normalized.minimal = normalized.minimal ?? false;

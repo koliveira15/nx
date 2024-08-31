@@ -8,7 +8,7 @@ import {
   SharedLibraryConfig,
   sharePackages,
   shareWorkspaceLibraries,
-} from '@nx/devkit/src/utils/module-federation';
+} from '@nx/webpack/src/utils/module-federation';
 
 import {
   createProjectGraphAsync,
@@ -39,6 +39,7 @@ export const DEFAULT_NPM_PACKAGES_TO_AVOID = [
   '@nrwl/angular/mf',
 ];
 export const DEFAULT_ANGULAR_PACKAGES_TO_SHARE = [
+  '@angular/core',
   '@angular/animations',
   '@angular/common',
 ];
@@ -48,7 +49,22 @@ export function getFunctionDeterminateRemoteUrl(isServer: boolean = false) {
   const remoteEntry = isServer ? 'server/remoteEntry.js' : 'remoteEntry.mjs';
 
   return function (remote: string) {
-    const remoteConfiguration = readCachedProjectConfiguration(remote);
+    const mappedStaticRemotesFromEnv = process.env
+      .NX_MF_DEV_SERVER_STATIC_REMOTES
+      ? JSON.parse(process.env.NX_MF_DEV_SERVER_STATIC_REMOTES)
+      : undefined;
+    if (mappedStaticRemotesFromEnv && mappedStaticRemotesFromEnv[remote]) {
+      return `${mappedStaticRemotesFromEnv[remote]}/${remoteEntry}`;
+    }
+
+    let remoteConfiguration = null;
+    try {
+      remoteConfiguration = readCachedProjectConfiguration(remote);
+    } catch (e) {
+      throw new Error(
+        `Cannot find remote "${remote}". Check that the remote name is correct in your module federation config file.\n`
+      );
+    }
     const serveTarget = remoteConfiguration?.targets?.[target];
 
     if (!serveTarget) {
@@ -124,7 +140,9 @@ export async function getModuleFederationConfig(
   });
 
   const sharedDependencies = {
-    ...sharedLibraries.getLibraries(),
+    ...sharedLibraries.getLibraries(
+      projectGraph.nodes[mfConfig.name].data.root
+    ),
     ...npmPackages,
   };
 

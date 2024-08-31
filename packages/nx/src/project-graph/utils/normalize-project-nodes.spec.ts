@@ -1,8 +1,5 @@
 import { ProjectGraphProjectNode } from '../../config/project-graph';
-import {
-  normalizeImplicitDependencies,
-  normalizeProjectTargets,
-} from './normalize-project-nodes';
+import { normalizeImplicitDependencies } from './normalize-project-nodes';
 
 describe('workspace-projects', () => {
   let projectGraph: Record<string, ProjectGraphProjectNode> = {
@@ -73,320 +70,41 @@ describe('workspace-projects', () => {
           },
         },
       };
-      expect(
-        normalizeImplicitDependencies('test-project', ['b*'], projectGraphMod)
-      ).toEqual(['b', 'b-1', 'b-2']);
-    });
-  });
-
-  describe('normalizeTargets', () => {
-    it('should apply target defaults', () => {
-      expect(
-        normalizeProjectTargets(
-          {
-            root: 'my/project',
-            targets: {
-              build: {
-                executor: 'target',
-                options: {
-                  a: 'a',
-                },
-              },
-            },
-          },
-          {
-            build: {
-              executor: 'target',
-              options: {
-                b: 'b',
-              },
-            },
-          },
-          'build'
-        ).build.options
-      ).toEqual({ a: 'a', b: 'b' });
-    });
-
-    it('should overwrite target defaults when type doesnt match or provided an array', () => {
-      expect(
-        normalizeProjectTargets(
-          {
-            root: 'my/project',
-            targets: {
-              build: {
-                executor: 'target',
-                options: {
-                  a: 'a',
-                  b: ['project-value'],
-                  c: 'project-value',
-                },
-              },
-            },
-          },
-          {
-            build: {
-              executor: 'target',
-              options: {
-                a: 1,
-                b: ['default-value'],
-                c: ['default-value'],
-              },
-            },
-          },
-          'build'
-        ).build.options
-      ).toEqual({ a: 'a', b: ['project-value'], c: 'project-value' });
-    });
-
-    it('should overwrite object options from target defaults', () => {
-      expect(
-        normalizeProjectTargets(
-          {
-            root: 'my/project',
-            targets: {
-              build: {
-                executor: 'target',
-                options: {
-                  a: 'a',
-                  b: {
-                    a: 'a',
-                    b: 'project-value',
-                  },
-                },
-              },
-            },
-          },
-          {
-            build: {
-              executor: 'target',
-              options: {
-                b: {
-                  b: 'default-value',
-                  c: 'c',
-                },
-              },
-            },
-          },
-          'build'
-        ).build.options
-      ).toEqual({
-        a: 'a',
-        b: {
-          a: 'a',
-          b: 'project-value',
-        },
-      });
-    });
-
-    it('should convert command property to run-commands executor', () => {
-      expect(
-        normalizeProjectTargets(
-          {
-            root: 'my/project',
-            targets: {
-              build: {
-                command: 'echo',
-              },
-            },
-          },
-          {},
-          'build'
-        ).build
-      ).toEqual({
-        executor: 'nx:run-commands',
-        configurations: {},
-        options: {
-          command: 'echo',
-        },
-      });
-    });
-
-    it('should apply defaults to run-commands from syntactic sugar', () => {
-      const result = normalizeProjectTargets(
-        {
-          name: 'mylib',
-          root: 'projects/mylib',
-          targets: {
-            echo: {
-              command: 'echo "hello world"',
-            },
-          },
-        },
-        {
-          'nx:run-commands': {
-            options: {
-              cwd: '{projectRoot}',
-            },
-          },
-        },
-        'echo'
+      const results = normalizeImplicitDependencies(
+        'test-project',
+        ['b*'],
+        projectGraphMod
       );
-      expect(result.echo).toEqual({
-        executor: 'nx:run-commands',
-        options: {
-          command: 'echo "hello world"',
-          cwd: 'projects/mylib',
-        },
-        configurations: {},
-      });
+      expect(results).toEqual(expect.arrayContaining(['b', 'b-1', 'b-2']));
+      expect(results).not.toContain('a');
     });
 
-    it('should not apply defaults when executor is not nx:run-commands and using command syntactic sugar', () => {
-      const result = normalizeProjectTargets(
-        {
-          name: 'mylib',
-          root: 'projects/mylib',
-          targets: {
-            echo: {
-              command: 'echo "hello world"',
-            },
-          },
-        },
-        {
-          echo: {
-            executor: 'nx:noop',
-            options: {
-              cwd: '{projectRoot}',
-            },
-          },
-        },
-        'echo'
+    it('should handle negative projects correctly', () => {
+      const results = normalizeImplicitDependencies(
+        'test-project',
+        ['*', '!a'],
+        projectGraph
       );
-      expect(result.echo).toEqual({
-        executor: 'nx:run-commands',
-        options: {
-          command: 'echo "hello world"',
-        },
-        configurations: {},
-      });
+      // a is excluded
+      expect(results).not.toContain('a');
+      // b and c are included by wildcard
+      expect(results).toEqual(expect.arrayContaining(['b', 'c']));
+      // !a should remain in the list, to remove deps on a if they exist
+      expect(results).toContain('!a');
     });
 
-    it('should support {projectRoot}, {workspaceRoot}, and {projectName} tokens', () => {
-      expect(
-        normalizeProjectTargets(
-          {
-            name: 'project',
-            root: 'my/project',
-            targets: {
-              build: {
-                executor: 'target',
-                options: {
-                  a: '{projectRoot}',
-                  b: '{workspaceRoot}',
-                  c: '{projectName}',
-                },
-              },
-            },
-          },
-          {},
-          'build'
-        ).build.options
-      ).toEqual({ a: 'my/project', b: '', c: 'project' });
-    });
-
-    it('should suppport {projectRoot} token in targetDefaults', () => {
-      expect(
-        normalizeProjectTargets(
-          {
-            name: 'project',
-            root: 'my/project',
-            targets: {
-              build: {
-                executor: 'target',
-                options: {
-                  a: 'a',
-                },
-              },
-            },
-          },
-          {
-            build: {
-              executor: 'target',
-              options: {
-                b: '{projectRoot}',
-              },
-            },
-          },
-          'build'
-        ).build.options
-      ).toEqual({ a: 'a', b: 'my/project' });
-    });
-
-    it('should merge options when targets use executors with defaults', () => {
-      expect(
-        normalizeProjectTargets(
-          {
-            root: 'my/project',
-            targets: {
-              build: {
-                executor: '@nx/jest:jest',
-                options: {
-                  a: 'a',
-                },
-              },
-            },
-          },
-          {
-            '@nx/jest:jest': {
-              options: {
-                b: 'b',
-              },
-            },
-          },
-          'build'
-        ).build.options
-      ).toEqual({ a: 'a', b: 'b' });
-    });
-
-    it('should not merge options when targets use different executors', () => {
-      expect(
-        normalizeProjectTargets(
-          {
-            root: 'my/project',
-            targets: {
-              build: {
-                executor: 'target',
-                options: {
-                  a: 'a',
-                },
-              },
-            },
-          },
-          {
-            build: {
-              executor: 'different-target',
-              options: {
-                b: 'c',
-              },
-            },
-          },
-          'build'
-        ).build.options
-      ).toEqual({ a: 'a' });
-    });
-
-    it('should not merge options when either target or target defaults use `command`', () => {
-      expect(
-        normalizeProjectTargets(
-          {
-            root: 'my/project',
-            targets: {
-              build: {
-                command: 'echo',
-              },
-            },
-          },
-          {
-            build: {
-              executor: 'target',
-              options: {
-                b: 'c',
-              },
-            },
-          },
-          'build'
-        ).build.options
-      ).toEqual({ command: 'echo' });
+    it('should handle negative patterns', () => {
+      const results = normalizeImplicitDependencies(
+        'test-project',
+        ['!tag:api'],
+        projectGraph
+      );
+      // No projects are included by provided patterns
+      expect(results.filter((x) => !x.startsWith('!'))).toHaveLength(0);
+      // tag:api was expanded, and results included for later processing.
+      expect(results).toEqual(
+        expect.arrayContaining(['!a', '!c', '!test-project'])
+      );
     });
   });
 });

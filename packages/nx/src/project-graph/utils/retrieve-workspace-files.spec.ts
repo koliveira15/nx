@@ -1,4 +1,4 @@
-import { TempFs } from '../../utils/testing/temp-fs';
+import { TempFs } from '../../internal-testing-utils/temp-fs';
 import { retrieveProjectConfigurationPaths } from './retrieve-workspace-files';
 
 describe('retrieveProjectConfigurationPaths', () => {
@@ -24,11 +24,21 @@ describe('retrieveProjectConfigurationPaths', () => {
         name: 'project-1',
       })
     );
-    expect(
-      await retrieveProjectConfigurationPaths(fs.tempDir, {})
-    ).not.toContain('not-projects/project.json');
-    expect(await retrieveProjectConfigurationPaths(fs.tempDir, {})).toContain(
-      'projects/project.json'
-    );
+
+    const configPaths = await retrieveProjectConfigurationPaths(fs.tempDir, [
+      {
+        createNodes: [
+          '{project.json,**/project.json}',
+          () => {
+            return {
+              projects: {},
+            };
+          },
+        ],
+      },
+    ]);
+
+    expect(configPaths).not.toContain('not-projects/project.json');
+    expect(configPaths).toContain('projects/project.json');
   });
 });

@@ -11,7 +11,8 @@ import {
   updateJson,
   updateProjectConfiguration,
   updateNxJson,
-  convertNxGenerator,
+  runTasksInSerial,
+  GeneratorCallback,
 } from '@nx/devkit';
 import { installedCypressVersion } from '../../utils/cypress-version';
 
@@ -23,33 +24,64 @@ import {
 } from '../../utils/versions';
 import { CypressComponentConfigurationSchema } from './schema';
 import { addBaseCypressSetup } from '../base-setup/base-setup';
+import init from '../init/init';
 
 type NormalizeCTOptions = ReturnType<typeof normalizeOptions>;
 
-export async function componentConfigurationGenerator(
+export function componentConfigurationGenerator(
   tree: Tree,
   options: CypressComponentConfigurationSchema
 ) {
-  const opts = normalizeOptions(options);
+  return componentConfigurationGeneratorInternal(tree, {
+    addPlugin: false,
+    ...options,
+  });
+}
+
+export async function componentConfigurationGeneratorInternal(
+  tree: Tree,
+  options: CypressComponentConfigurationSchema
+) {
+  const tasks: GeneratorCallback[] = [];
+  const opts = normalizeOptions(tree, options);
+
+  tasks.push(
+    await init(tree, {
+      ...opts,
+      skipFormat: true,
+    })
+  );
+
+  const nxJson = readNxJson(tree);
+  const hasPlugin = nxJson.plugins?.some((p) =>
+    typeof p === 'string'
+      ? p === '@nx/cypress/plugin'
+      : p.plugin === '@nx/cypress/plugin'
+  );
 
   const projectConfig = readProjectConfiguration(tree, opts.project);
 
-  const installDepsTask = updateDeps(tree, opts);
+  tasks.push(updateDeps(tree, opts));
 
   addProjectFiles(tree, projectConfig, opts);
-  addTargetToProject(tree, projectConfig, opts);
-  updateNxJsonConfiguration(tree);
+  if (!hasPlugin || opts.addExplicitTargets) {
+    addTargetToProject(tree, projectConfig, opts);
+  }
+  updateNxJsonConfiguration(tree, hasPlugin);
+
   updateTsConfigForComponentTesting(tree, projectConfig);
 
   if (!opts.skipFormat) {
     await formatFiles(tree);
   }
-  return () => {
-    installDepsTask();
-  };
+
+  return runTasksInSerial(...tasks);
 }
 
-function normalizeOptions(options: CypressComponentConfigurationSchema) {
+function normalizeOptions(
+  tree: Tree,
+  options: CypressComponentConfigurationSchema
+) {
   const cyVersion = installedCypressVersion();
   if (cyVersion && cyVersion < 10) {
     throw new Error(
@@ -57,8 +89,15 @@ function normalizeOptions(options: CypressComponentConfigurationSchema) {
     );
   }
 
+  const nxJson = readNxJson(tree);
+  const addPlugin =
+    process.env.NX_ADD_PLUGINS !== 'false' &&
+    nxJson.useInferencePlugins !== false;
+
   return {
+    addPlugin,
     ...options,
+    framework: options.framework ?? null,
     directory: options.directory ?? 'cypress',
   };
 }
@@ -86,6 +125,7 @@ function addProjectFiles(
   addBaseCypressSetup(tree, {
     project: opts.project,
     directory: opts.directory,
+    jsx: opts.jsx,
   });
 
   generateFiles(
@@ -117,38 +157,33 @@ function addTargetToProject(
   updateProjectConfiguration(tree, opts.project, projectConfig);
 }
 
-function updateNxJsonConfiguration(tree: Tree) {
+function updateNxJsonConfiguration(tree: Tree, hasPlugin: boolean) {
   const nxJson = readNxJson(tree);
-  nxJson.tasksRunnerOptions = {
-    ...nxJson?.tasksRunnerOptions,
-    default: {
-      ...nxJson?.tasksRunnerOptions?.default,
-      options: {
-        ...nxJson?.tasksRunnerOptions?.default?.options,
-        cacheableOperations: Array.from(
-          new Set([
-            ...(nxJson?.tasksRunnerOptions?.default?.options
-              ?.cacheableOperations ?? []),
-            'component-test',
-          ])
-        ),
-      },
-    },
-  };
 
-  if (nxJson.namedInputs) {
-    nxJson.targetDefaults ??= {};
-    const productionFileSet = nxJson.namedInputs?.production;
-    if (productionFileSet) {
-      nxJson.namedInputs.production = Array.from(
-        new Set([
-          ...productionFileSet,
-          '!{projectRoot}/cypress/**/*',
-          '!{projectRoot}/**/*.cy.[jt]s?(x)',
-          '!{projectRoot}/cypress.config.[jt]s',
-        ])
-      );
+  const productionFileSet = nxJson.namedInputs?.production;
+  if (productionFileSet) {
+    nxJson.namedInputs.production = Array.from(
+      new Set([
+        ...productionFileSet,
+        '!{projectRoot}/cypress/**/*',
+        '!{projectRoot}/**/*.cy.[jt]s?(x)',
+        '!{projectRoot}/cypress.config.[jt]s',
+      ])
+    );
+  }
+  if (!hasPlugin) {
+    const cacheableOperations: string[] | null =
+      nxJson.tasksRunnerOptions?.default?.options?.cacheableOperations;
+    if (
+      cacheableOperations &&
+      !cacheableOperations.includes('component-test')
+    ) {
+      cacheableOperations.push('component-test');
     }
+    nxJson.targetDefaults ??= {};
+    nxJson.targetDefaults['component-test'] ??= {};
+    nxJson.targetDefaults['component-test'].cache ??= true;
+
     nxJson.targetDefaults['component-test'] ??= {};
     nxJson.targetDefaults['component-test'].inputs ??= [
       'default',
@@ -218,4 +253,3 @@ export function updateTsConfigForComponentTesting(
 }
 
 export default componentConfigurationGenerator;
-export const compat = convertNxGenerator(componentConfigurationGenerator);

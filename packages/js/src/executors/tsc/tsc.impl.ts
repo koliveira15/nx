@@ -1,6 +1,10 @@
 import * as ts from 'typescript';
-import { sync as globSync } from 'fast-glob';
-import { ExecutorContext } from '@nx/devkit';
+import {
+  ExecutorContext,
+  isDaemonEnabled,
+  joinPathFragments,
+  output,
+} from '@nx/devkit';
 import type { TypeScriptCompilationOptions } from '@nx/workspace/src/utilities/typescript/compilation';
 import { CopyAssetsHandler } from '../../utils/assets/copy-assets-handler';
 import { checkDependencies } from '../../utils/check-dependencies';
@@ -19,6 +23,7 @@ import { compileTypeScriptFiles } from '../../utils/typescript/compile-typescrip
 import { watchForSingleFileChanges } from '../../utils/watch-for-single-file-changes';
 import { getCustomTrasformersFactory, normalizeOptions } from './lib';
 import { readTsConfig } from '../../utils/typescript/ts-config';
+import { createEntryPoints } from '../../utils/package-json/create-entry-points';
 
 export function determineModuleFormatFromTsConfig(
   absolutePathToTsConfig: string
@@ -41,11 +46,11 @@ export function createTypeScriptCompilationOptions(
   context: ExecutorContext
 ): TypeScriptCompilationOptions {
   return {
-    outputPath: normalizedOptions.outputPath,
+    outputPath: joinPathFragments(normalizedOptions.outputPath),
     projectName: context.projectName,
     projectRoot: normalizedOptions.projectRoot,
-    rootDir: normalizedOptions.rootDir,
-    tsConfig: normalizedOptions.tsConfig,
+    rootDir: joinPathFragments(normalizedOptions.rootDir),
+    tsConfig: joinPathFragments(normalizedOptions.tsConfig),
     watch: normalizedOptions.watch,
     deleteOutputPath: normalizedOptions.clean,
     getCustomTransformers: getCustomTrasformersFactory(
@@ -64,7 +69,7 @@ export async function* tscExecutor(
 
   const { projectRoot, tmpTsConfig, target, dependencies } = checkDependencies(
     context,
-    _options.tsConfig
+    options.tsConfig
   );
 
   if (tmpTsConfig) {
@@ -112,11 +117,11 @@ export async function* tscExecutor(
       updatePackageJson(
         {
           ...options,
-          additionalEntryPoints: createEntryPoints(options, context),
+          additionalEntryPoints: createEntryPoints(
+            options.additionalEntryPoints,
+            context.root
+          ),
           format: [determineModuleFormatFromTsConfig(options.tsConfig)],
-          // As long as d.ts files match their .js counterparts, we don't need to emit them.
-          // TSC can match them correctly based on file names.
-          skipTypings: true,
         },
         context,
         target,
@@ -130,7 +135,14 @@ export async function* tscExecutor(
     }
   );
 
-  if (options.watch) {
+  if (!isDaemonEnabled() && options.watch) {
+    output.warn({
+      title:
+        'Nx Daemon is not enabled. Assets and package.json files will not be updated when files change.',
+    });
+  }
+
+  if (isDaemonEnabled() && options.watch) {
     const disposeWatchAssetChanges =
       await assetHandler.watchAndProcessOnAssetChange();
     const disposePackageJsonChanges = await watchForSingleFileChanges(
@@ -141,10 +153,10 @@ export async function* tscExecutor(
         updatePackageJson(
           {
             ...options,
-            additionalEntryPoints: createEntryPoints(options, context),
-            // As long as d.ts files match their .js counterparts, we don't need to emit them.
-            // TSC can match them correctly based on file names.
-            skipTypings: true,
+            additionalEntryPoints: createEntryPoints(
+              options.additionalEntryPoints,
+              context.root
+            ),
             format: [determineModuleFormatFromTsConfig(options.tsConfig)],
           },
           context,
@@ -163,16 +175,6 @@ export async function* tscExecutor(
   }
 
   return yield* typescriptCompilation.iterator;
-}
-
-export function createEntryPoints(
-  options: { additionalEntryPoints?: string[] },
-  context: ExecutorContext
-): string[] {
-  if (!options.additionalEntryPoints?.length) return [];
-  return globSync(options.additionalEntryPoints, {
-    cwd: context.root,
-  });
 }
 
 export default tscExecutor;

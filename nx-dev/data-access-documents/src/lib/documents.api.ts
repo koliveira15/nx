@@ -69,7 +69,7 @@ export class DocumentsApi {
 
     if (!document) {
       if (
-        path[0] === 'packages' &&
+        path[0] === 'nx-api' &&
         path[1] === 'devkit' &&
         path[2] === 'documents'
       ) {
@@ -95,6 +95,7 @@ export class DocumentsApi {
       filePath: this.getFilePath(document.file),
       id: document.id,
       name: document.name,
+      mediaImage: document.mediaImage || '',
       relatedDocuments: this.getRelatedDocuments(document.tags),
       tags: document.tags,
     };

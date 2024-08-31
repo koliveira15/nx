@@ -6,7 +6,7 @@ import {
   runTasksInSerial,
   Tree,
 } from '@nx/devkit';
-import { Linter, lintProjectGenerator } from '@nx/linter';
+import { Linter, LinterType, lintProjectGenerator } from '@nx/eslint';
 import { installedCypressVersion } from './cypress-version';
 import { eslintPluginCypressVersion } from './versions';
 import {
@@ -16,12 +16,15 @@ import {
   findEslintFile,
   isEslintConfigSupported,
   replaceOverridesInLintConfig,
-} from '@nx/linter/src/generators/utils/eslint-file';
-import { javaScriptOverride } from '@nx/linter/src/generators/init/global-eslint-config';
+} from '@nx/eslint/src/generators/utils/eslint-file';
+import {
+  javaScriptOverride,
+  typeScriptOverride,
+} from '@nx/eslint/src/generators/init/global-eslint-config';
 
 export interface CyLinterOptions {
   project: string;
-  linter: Linter;
+  linter: Linter | LinterType;
   setParserOptionsProject?: boolean;
   skipPackageJson?: boolean;
   rootProject?: boolean;
@@ -36,6 +39,7 @@ export interface CyLinterOptions {
    * This is useful when adding linting to a brand new project vs an existing one
    **/
   overwriteExisting?: boolean;
+  addPlugin?: boolean;
 }
 
 export async function addLinterToCyProject(
@@ -57,12 +61,10 @@ export async function addLinterToCyProject(
         linter: options.linter,
         skipFormat: true,
         tsConfigPaths: [joinPathFragments(projectConfig.root, 'tsconfig.json')],
-        eslintFilePatterns: [
-          `${projectConfig.root}/**/*.${options.js ? 'js' : '{js,ts}'}`,
-        ],
         setParserOptionsProject: options.setParserOptionsProject,
         skipPackageJson: options.skipPackageJson,
         rootProject: options.rootProject,
+        addPlugin: options.addPlugin,
       })
     );
   }
@@ -70,6 +72,8 @@ export async function addLinterToCyProject(
   if (!options.linter || options.linter !== Linter.EsLint) {
     return runTasksInSerial(...tasks);
   }
+
+  options.overwriteExisting = options.overwriteExisting || !eslintFile;
 
   tasks.push(
     !options.skipPackageJson
@@ -81,10 +85,14 @@ export async function addLinterToCyProject(
       : () => {}
   );
 
-  if (isEslintConfigSupported(tree)) {
+  if (
+    isEslintConfigSupported(tree, projectConfig.root) ||
+    isEslintConfigSupported(tree)
+  ) {
     const overrides = [];
     if (options.rootProject) {
       addPluginsToLintConfig(tree, projectConfig.root, '@nx');
+      overrides.push(typeScriptOverride);
       overrides.push(javaScriptOverride);
     }
     addExtendsToLintConfig(
@@ -107,7 +115,7 @@ export async function addLinterToCyProject(
     const addCy6Override = cyVersion && cyVersion < 7;
 
     if (options.overwriteExisting) {
-      overrides.push({
+      overrides.unshift({
         files: ['*.ts', '*.tsx', '*.js', '*.jsx'],
         parserOptions: !options.setParserOptionsProject
           ? undefined

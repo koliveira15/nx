@@ -10,6 +10,7 @@ import {
   lt,
   lte,
   major,
+  parse,
   satisfies,
   valid,
 } from 'semver';
@@ -27,10 +28,12 @@ import {
   extractFileFromTarball,
   fileExists,
   JsonReadOptions,
+  JsonWriteOptions,
   readJsonFile,
   writeJsonFile,
 } from '../../utils/fileutils';
 import { logger } from '../../utils/logger';
+import { commitChanges } from '../../utils/git-utils';
 import {
   ArrayPackageGroup,
   NxMigrationsConfiguration,
@@ -47,11 +50,12 @@ import {
   resolvePackageVersionUsingRegistry,
 } from '../../utils/package-manager';
 import { handleErrors } from '../../utils/params';
-import { connectToNxCloudCommand } from '../connect/connect-to-nx-cloud';
+import {
+  connectToNxCloudWithPrompt,
+  onlyDefaultRunnerIsUsed,
+} from '../connect/connect-to-nx-cloud';
 import { output } from '../../utils/output';
-import { messages, recordStat } from '../../utils/ab-testing';
-import { nxVersion } from '../../utils/versions';
-import { existsSync, readFileSync } from 'fs';
+import { existsSync, readFileSync, writeFileSync } from 'fs';
 import { workspaceRoot } from '../../utils/workspace-root';
 import { isCI } from '../../utils/is-ci';
 import { getNxRequirePaths } from '../../utils/installation-directory';
@@ -59,6 +63,11 @@ import { readNxJson } from '../../config/configuration';
 import { runNxSync } from '../../utils/child-process';
 import { daemonClient } from '../../daemon/client/client';
 import { isNxCloudUsed } from '../../utils/nx-cloud-utils';
+import {
+  createProjectGraphAsync,
+  readProjectsConfigurationFromProjectGraph,
+} from '../../project-graph/project-graph';
+import { formatFilesWithPrettierIfAvailable } from '../../generators/internal-utils/format-changed-files-with-prettier-if-available';
 
 export interface ResolvedMigrationConfiguration extends MigrationsJson {
   packageGroup?: ArrayPackageGroup;
@@ -642,9 +651,9 @@ async function normalizeVersionWithTagCheck(
   version: string
 ): Promise<string> {
   // This doesn't seem like a valid version, lets check if its a tag on the registry.
-  if (version && !coerce(version)) {
+  if (version && !parse(version)) {
     try {
-      return packageRegistryView(pkg, version, 'version');
+      return resolvePackageVersionUsingRegistry(pkg, version);
     } catch {
       // fall through to old logic
     }
@@ -711,6 +720,7 @@ async function parseTargetPackageAndVersion(
     if (
       args === 'latest' ||
       args === 'next' ||
+      args === 'canary' ||
       valid(args) ||
       args.match(/^\d+(?:\.\d+)?(?:\.\d+)?$/)
     ) {
@@ -719,7 +729,8 @@ async function parseTargetPackageAndVersion(
       // on the registry
       const targetVersion = await normalizeVersionWithTagCheck('nx', args);
       const targetPackage =
-        !['latest', 'next'].includes(args) && lt(targetVersion, '14.0.0-beta.0')
+        !['latest', 'next', 'canary'].includes(args) &&
+        lt(targetVersion, '14.0.0-beta.0')
           ? '@nrwl/workspace'
           : 'nx';
 
@@ -1046,6 +1057,10 @@ async function getPackageMigrationsUsingInstall(
     }
 
     result = { ...migrations, packageGroup, version: packageJson.version };
+  } catch (e) {
+    logger.warn(
+      `Unable to fetch migrations for ${packageName}@${packageVersion}: ${e.message}`
+    );
   } finally {
     await cleanup();
   }
@@ -1092,17 +1107,17 @@ function readPackageMigrationConfig(
   }
 }
 
-function createMigrationsFile(
+async function createMigrationsFile(
   root: string,
   migrations: {
     package: string;
     name: string;
   }[]
 ) {
-  writeJsonFile(join(root, 'migrations.json'), { migrations });
+  await writeFormattedJsonFile(join(root, 'migrations.json'), { migrations });
 }
 
-function updatePackageJson(
+async function updatePackageJson(
   root: string,
   updatedPackages: Record<string, PackageUpdate>
 ) {
@@ -1132,7 +1147,7 @@ function updatePackageJson(
     }
   });
 
-  writeJsonFile(packageJsonPath, json, {
+  await writeFormattedJsonFile(packageJsonPath, json, {
     appendNewLine: parseOptions.endsWithNewline,
   });
 }
@@ -1165,14 +1180,14 @@ async function updateInstallationDetails(
     }
   }
 
-  writeJsonFile(nxJsonPath, nxJson, {
+  await writeFormattedJsonFile(nxJsonPath, nxJson, {
     appendNewLine: parseOptions.endsWithNewline,
   });
 }
 
 async function isMigratingToNewMajor(from: string, to: string) {
   from = normalizeVersion(from);
-  to = ['latest', 'next'].includes(to) ? to : normalizeVersion(to);
+  to = ['latest', 'next', 'canary'].includes(to) ? to : normalizeVersion(to);
   if (!valid(from)) {
     from = await resolvePackageVersionUsingRegistry('nx', from);
   }
@@ -1203,41 +1218,17 @@ async function generateMigrationsJsonAndUpdatePackageJson(
     let originalPackageJson = existsSync(rootPkgJsonPath)
       ? readJsonFile<PackageJson>(rootPkgJsonPath)
       : null;
-    const originalNxInstallation = readNxJson().installation;
+    const originalNxJson = readNxJson();
     const from =
-      originalNxInstallation?.version ?? readNxVersion(originalPackageJson);
-
-    try {
-      if (
-        ['nx', '@nrwl/workspace'].includes(opts.targetPackage) &&
-        (await isMigratingToNewMajor(from, opts.targetVersion)) &&
-        !isCI() &&
-        !isNxCloudUsed()
-      ) {
-        const useCloud = await connectToNxCloudCommand(
-          messages.getPromptMessage('nxCloudMigration')
-        );
-        await recordStat({
-          command: 'migrate',
-          nxVersion,
-          useCloud,
-          meta: messages.codeOfSelectedPromptMessage('nxCloudMigration'),
-        });
-        originalPackageJson = readJsonFile<PackageJson>(
-          join(root, 'package.json')
-        );
-      }
-    } catch {
-      // The above code is to remind folks when updating to a new major and not currently using Nx cloud.
-      // If for some reason it fails, it shouldn't affect the overall migration process
-    }
+      originalNxJson.installation?.version ??
+      readNxVersion(originalPackageJson);
 
     logger.info(`Fetching meta data about packages.`);
     logger.info(`It may take a few minutes.`);
 
     const migrator = new Migrator({
       packageJson: originalPackageJson,
-      nxInstallation: originalNxInstallation,
+      nxInstallation: originalNxJson.installation,
       getInstalledPackageVersion: createInstalledPackageVersionsResolver(root),
       fetch: createFetcher(),
       from: opts.from,
@@ -1249,11 +1240,11 @@ async function generateMigrationsJsonAndUpdatePackageJson(
     const { migrations, packageUpdates, minVersionWithSkippedUpdates } =
       await migrator.migrate(opts.targetPackage, opts.targetVersion);
 
-    updatePackageJson(root, packageUpdates);
+    await updatePackageJson(root, packageUpdates);
     await updateInstallationDetails(root, packageUpdates);
 
     if (migrations.length > 0) {
-      createMigrationsFile(root, [
+      await createMigrationsFile(root, [
         ...addSplitConfigurationMigrationIfAvailable(from, packageUpdates),
         ...migrations,
       ] as any);
@@ -1269,6 +1260,32 @@ async function generateMigrationsJsonAndUpdatePackageJson(
       ],
     });
 
+    try {
+      if (
+        ['nx', '@nrwl/workspace'].includes(opts.targetPackage) &&
+        (await isMigratingToNewMajor(from, opts.targetVersion)) &&
+        !isCI() &&
+        !isNxCloudUsed(originalNxJson)
+      ) {
+        output.success({
+          title: 'Connect to Nx Cloud',
+          bodyLines: [
+            'Nx Cloud is a first-party CI companion for Nx projects. It improves critical aspects of CI:',
+            '- Speed: 30% - 70% faster CI',
+            '- Cost: 40% - 75% reduction in CI costs',
+            '- Reliability: by automatically identifying flaky tasks and re-running them',
+          ],
+        });
+        await connectToNxCloudWithPrompt('migrate');
+        originalPackageJson = readJsonFile<PackageJson>(
+          join(root, 'package.json')
+        );
+      }
+    } catch {
+      // The above code is to remind folks when updating to a new major and not currently using Nx cloud.
+      // If for some reason it fails, it shouldn't affect the overall migration process
+    }
+
     output.log({
       title: 'Next steps:',
       bodyLines: [
@@ -1283,7 +1300,7 @@ async function generateMigrationsJsonAndUpdatePackageJson(
               `- To learn more go to https://nx.dev/recipes/tips-n-tricks/advanced-update`,
             ]
           : [
-              `- To learn more go to https://nx.dev/core-features/automate-updating-dependencies`,
+              `- To learn more go to https://nx.dev/features/automate-updating-dependencies`,
             ]),
         ...(showConnectToCloudMessage()
           ? [
@@ -1300,6 +1317,26 @@ async function generateMigrationsJsonAndUpdatePackageJson(
       title: `The migrate command failed.`,
     });
     throw e;
+  }
+}
+
+async function writeFormattedJsonFile(
+  filePath: string,
+  content: any,
+  options?: JsonWriteOptions
+): Promise<void> {
+  const formattedContent = await formatFilesWithPrettierIfAvailable(
+    [{ path: filePath, content: JSON.stringify(content) }],
+    workspaceRoot,
+    { silent: true }
+  );
+
+  if (formattedContent.has(filePath)) {
+    writeFileSync(filePath, formattedContent.get(filePath)!, {
+      encoding: 'utf-8',
+    });
+  } else {
+    writeJsonFile(filePath, content, options);
   }
 }
 
@@ -1332,14 +1369,8 @@ function addSplitConfigurationMigrationIfAvailable(
 
 function showConnectToCloudMessage() {
   try {
-    const nxJson = readJsonFile<NxJsonConfiguration>('nx.json');
-    const defaultRunnerIsUsed =
-      !nxJson.tasksRunnerOptions ||
-      Object.values(nxJson.tasksRunnerOptions).find(
-        (r: any) =>
-          r.runner == '@nrwl/workspace/tasks-runners/default' ||
-          r.runner == 'nx/tasks-runners/default'
-      );
+    const nxJson = readNxJson();
+    const defaultRunnerIsUsed = onlyDefaultRunnerIsUsed(nxJson);
     return !!defaultRunnerIsUsed;
   } catch {
     return false;
@@ -1372,11 +1403,38 @@ export async function executeMigrations(
   shouldCreateCommits: boolean,
   commitPrefix: string
 ) {
-  const depsBeforeMigrations = getStringifiedPackageJsonDeps(root);
+  let initialDeps = getStringifiedPackageJsonDeps(root);
+  const installDepsIfChanged = () => {
+    const currentDeps = getStringifiedPackageJsonDeps(root);
+    if (initialDeps !== currentDeps) {
+      runInstall();
+    }
+    initialDeps = currentDeps;
+  };
 
   const migrationsWithNoChanges: typeof migrations = [];
+  const sortedMigrations = migrations.sort((a, b) => {
+    // special case for the split configuration migration to run first
+    if (a.name === '15-7-0-split-configuration-into-project-json-files') {
+      return -1;
+    }
+    if (b.name === '15-7-0-split-configuration-into-project-json-files') {
+      return 1;
+    }
 
-  for (const m of migrations) {
+    return lt(normalizeVersion(a.version), normalizeVersion(b.version))
+      ? -1
+      : 1;
+  });
+
+  logger.info(`Running the following migrations:`);
+  sortedMigrations.forEach((m) =>
+    logger.info(`- ${m.package}: ${m.name} (${m.description})`)
+  );
+  logger.info(`---------------------------------------------------------\n`);
+
+  for (const m of sortedMigrations) {
+    logger.info(`Running migration ${m.package}: ${m.name}`);
     try {
       const { collection, collectionPath } = readMigrationCollection(
         m.package,
@@ -1390,36 +1448,45 @@ export async function executeMigrations(
           m.name
         );
 
+        logger.info(`Ran ${m.name} from ${m.package}`);
+        logger.info(`  ${m.description}\n`);
         if (changes.length < 1) {
+          logger.info(`No changes were made\n`);
           migrationsWithNoChanges.push(m);
-          // If no changes are made, continue on without printing anything
           continue;
         }
 
-        logger.info(`Ran ${m.name} from ${m.package}`);
-        logger.info(`  ${m.description}\n`);
+        logger.info('Changes:');
         printChanges(changes, '  ');
+        logger.info('');
       } else {
         const ngCliAdapter = await getNgCompatLayer();
         const { madeChanges, loggingQueue } = await ngCliAdapter.runMigration(
           root,
           m.package,
           m.name,
+          readProjectsConfigurationFromProjectGraph(
+            await createProjectGraphAsync()
+          ).projects,
           isVerbose
         );
 
+        logger.info(`Ran ${m.name} from ${m.package}`);
+        logger.info(`  ${m.description}\n`);
         if (!madeChanges) {
+          logger.info(`No changes were made\n`);
           migrationsWithNoChanges.push(m);
-          // If no changes are made, continue on without printing anything
           continue;
         }
 
-        logger.info(`Ran ${m.name} from ${m.package}`);
-        logger.info(`  ${m.description}\n`);
+        logger.info('Changes:');
         loggingQueue.forEach((log) => logger.info('  ' + log));
+        logger.info('');
       }
 
       if (shouldCreateCommits) {
+        installDepsIfChanged();
+
         const commitMessage = `${commitPrefix}${m.name}`;
         try {
           const committedSha = commitChanges(commitMessage);
@@ -1448,10 +1515,10 @@ export async function executeMigrations(
     }
   }
 
-  const depsAfterMigrations = getStringifiedPackageJsonDeps(root);
-  if (depsBeforeMigrations !== depsAfterMigrations) {
-    runInstall();
+  if (!shouldCreateCommits) {
+    installDepsIfChanged();
   }
+
   return migrationsWithNoChanges;
 }
 
@@ -1540,32 +1607,6 @@ function getStringifiedPackageJsonDeps(root: string): string {
   }
 }
 
-function commitChanges(commitMessage: string): string | null {
-  try {
-    execSync('git add -A', { encoding: 'utf8', stdio: 'pipe' });
-    execSync('git commit --no-verify -F -', {
-      encoding: 'utf8',
-      stdio: 'pipe',
-      input: commitMessage,
-    });
-  } catch (err) {
-    throw new Error(`Error committing changes:\n${err.stderr}`);
-  }
-
-  return getLatestCommitSha();
-}
-
-function getLatestCommitSha(): string | null {
-  try {
-    return execSync('git rev-parse HEAD', {
-      encoding: 'utf8',
-      stdio: 'pipe',
-    }).trim();
-  } catch {
-    return null;
-  }
-}
-
 async function runNxMigration(
   root: string,
   collectionPath: string,
@@ -1595,10 +1636,6 @@ export async function migrate(
   args: { [k: string]: any },
   rawArgs: string[]
 ) {
-  if (args['verbose']) {
-    process.env.NX_VERBOSE_LOGGING = 'true';
-  }
-
   await daemonClient.stop();
 
   return handleErrors(process.env.NX_VERBOSE_LOGGING === 'true', async () => {
@@ -1662,62 +1699,21 @@ function getImplementationPath(
   return { path: implPath, fnSymbol };
 }
 
-// TODO (v17): This should just become something like:
-// ```
-// return !collection.generators[name] && collection.schematics[name]
-// ```
+// TODO (v21): Remove CLI determination of Angular Migration
 function isAngularMigration(
   collection: MigrationsJson,
   collectionPath: string,
   name: string
 ) {
   const entry = collection.generators?.[name] || collection.schematics?.[name];
-
-  // In the future we will determine this based on the location of the entry in the collection.
-  // If the entry is under `schematics`, it will be assumed to be an angular cli migration.
-  // If the entry is under `generators`, it will be assumed to be an nx migration.
-  // For now, we will continue to obey the cli property, if it exists.
-  // If it doesn't exist, we will check if the implementation references @angular/devkit.
   const shouldBeNx = !!collection.generators?.[name];
   const shouldBeNg = !!collection.schematics?.[name];
-  let useAngularDevkitToRunMigration = false;
-
-  const { path: implementationPath } = getImplementationPath(
-    collection,
-    collectionPath,
-    name
-  );
-  const implStringContents = readFileSync(implementationPath, 'utf-8');
-  // TODO (v17): Remove this check and the cli property access - it is only here for backwards compatibility.
-  if (
-    ['@angular/material', '@angular/cdk'].includes(collection.name) ||
-    [
-      "import('@angular-devkit",
-      'import("@angular-devkit',
-      "require('@angular-devkit",
-      'require("@angular-devkit',
-      "from '@angular-devkit",
-      'from "@angular-devkit',
-    ].some((s) => implStringContents.includes(s))
-  ) {
-    useAngularDevkitToRunMigration = true;
-  }
-
-  if (useAngularDevkitToRunMigration && shouldBeNx) {
+  if (entry.cli && entry.cli !== 'nx' && collection.generators?.[name]) {
     output.warn({
       title: `The migration '${collection.name}:${name}' appears to be an Angular CLI migration, but is located in the 'generators' section of migrations.json.`,
       bodyLines: [
-        'In Nx 17, migrations inside `generators` will be treated as Angular Devkit migrations.',
-        "Please open an issue on the plugin's repository if you believe this is an error.",
-      ],
-    });
-  }
-
-  if (!useAngularDevkitToRunMigration && entry.cli === 'nx' && shouldBeNg) {
-    output.warn({
-      title: `The migration '${collection.name}:${name}' appears to be an Nx migration, but is located in the 'schematics' section of migrations.json.`,
-      bodyLines: [
-        'In Nx 17, migrations inside `generators` will be treated as nx devkit migrations.',
+        'In Nx 21, migrations inside `generators` will be treated as Nx Devkit migrations and therefore may not run correctly if they are using Angular Devkit.',
+        'If the migration should be run with Angular Devkit, please place the migration inside `schematics` instead.',
         "Please open an issue on the plugin's repository if you believe this is an error.",
       ],
     });
@@ -1725,7 +1721,7 @@ function isAngularMigration(
 
   // Currently, if the cli property exists we listen to it. If its nx, its not an ng cli migration.
   // If the property is not set, we will fall back to our intuition.
-  return entry.cli ? entry.cli !== 'nx' : useAngularDevkitToRunMigration;
+  return entry.cli ? entry.cli !== 'nx' : !shouldBeNx && shouldBeNg;
 }
 
 const getNgCompatLayer = (() => {

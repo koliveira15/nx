@@ -1,5 +1,5 @@
-import type { ProjectNameAndRootFormat } from '@nx/devkit/src/generators/project-name-directory-utils';
-import type { Linter } from '@nx/linter';
+import type { ProjectNameAndRootFormat } from '@nx/devkit/src/generators/project-name-and-root-utils';
+import type { Linter, LinterType } from '@nx/eslint';
 import type { SupportedStyles } from '@nx/react';
 
 export interface Schema {
@@ -13,8 +13,8 @@ export interface Schema {
   pascalCaseFiles?: boolean;
   routing?: boolean;
   appProject?: string;
-  unitTestRunner: 'jest' | 'none';
-  linter: Linter;
+  unitTestRunner: 'jest' | 'vitest' | 'none';
+  linter: Linter | LinterType;
   component?: boolean;
   publishable?: boolean;
   buildable?: boolean;
@@ -24,4 +24,5 @@ export interface Schema {
   strict?: boolean;
   setParserOptionsProject?: boolean;
   skipPackageJson?: boolean;
+  addPlugin?: boolean;
 }

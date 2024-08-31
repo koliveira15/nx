@@ -1,5 +1,4 @@
 import {
-  convertNxGenerator,
   ensurePackage,
   formatFiles,
   type GeneratorCallback,
@@ -13,6 +12,7 @@ import { addSwcConfig } from '../../utils/swc/add-swc-config';
 import { addSwcDependencies } from '../../utils/swc/add-swc-dependencies';
 import { nxVersion } from '../../utils/versions';
 import { SetupBuildGeneratorSchema } from './schema';
+import { addBuildTargetDefaults } from '@nx/devkit/src/generators/target-defaults-utils';
 
 export async function setupBuildGenerator(
   tree: Tree,
@@ -123,6 +123,8 @@ export async function setupBuildGenerator(
       break;
     }
     case 'tsc': {
+      addBuildTargetDefaults(tree, '@nx/js:tsc');
+
       const outputPath = joinPathFragments('dist', project.root);
       project.targets[buildTarget] = {
         executor: `@nx/js:tsc`,
@@ -138,6 +140,8 @@ export async function setupBuildGenerator(
       break;
     }
     case 'swc': {
+      addBuildTargetDefaults(tree, '@nx/js:swc');
+
       const outputPath = joinPathFragments('dist', project.root);
       project.targets[buildTarget] = {
         executor: `@nx/js:swc`,
@@ -161,4 +165,3 @@ export async function setupBuildGenerator(
 }
 
 export default setupBuildGenerator;
-export const setupBuildSchematic = convertNxGenerator(setupBuildGenerator);

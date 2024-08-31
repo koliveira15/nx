@@ -1,7 +1,6 @@
 import type { Tree } from '@nx/devkit';
 import {
   addProjectConfiguration,
-  convertNxGenerator,
   extractLayoutDirectory,
   formatFiles,
   generateFiles,
@@ -12,6 +11,7 @@ import {
   names,
   offsetFromRoot,
   readJson,
+  readNxJson,
   readProjectConfiguration,
   runTasksInSerial,
   updateProjectConfiguration,
@@ -21,7 +21,7 @@ import { addPropertyToJestConfig, configurationGenerator } from '@nx/jest';
 import { getRelativePathToRootTsConfig } from '@nx/js';
 import { setupVerdaccio } from '@nx/js/src/generators/setup-verdaccio/generator';
 import { addLocalRegistryScripts } from '@nx/js/src/utils/add-local-registry-scripts';
-import { Linter, lintProjectGenerator } from '@nx/linter';
+import { Linter, LinterType, lintProjectGenerator } from '@nx/eslint';
 import { join } from 'path';
 import type { Schema } from './schema';
 
@@ -29,7 +29,7 @@ interface NormalizedSchema extends Schema {
   projectRoot: string;
   projectName: string;
   pluginPropertyName: string;
-  linter: Linter;
+  linter: Linter | LinterType;
 }
 
 async function normalizeOptions(
@@ -37,6 +37,13 @@ async function normalizeOptions(
   options: Schema
 ): Promise<NormalizedSchema> {
   const projectName = options.rootProject ? 'e2e' : `${options.pluginName}-e2e`;
+
+  const nxJson = readNxJson(host);
+  const addPlugin =
+    process.env.NX_ADD_PLUGINS !== 'false' &&
+    nxJson.useInferencePlugins !== false;
+
+  options.addPlugin ??= addPlugin;
 
   let projectRoot: string;
   if (options.projectNameAndRootFormat === 'as-provided') {
@@ -110,17 +117,19 @@ async function addJest(host: Tree, options: NormalizedSchema) {
   addProjectConfiguration(host, options.projectName, {
     root: options.projectRoot,
     projectType: 'application',
-    sourceRoot: `${options.projectRoot}/tests`,
+    sourceRoot: `${options.projectRoot}/src`,
     targets: {},
     implicitDependencies: [options.pluginName],
   });
 
   const jestTask = await configurationGenerator(host, {
     project: options.projectName,
+    targetName: 'e2e',
     setupFile: 'none',
     supportTsx: false,
     skipSerializers: true,
     skipFormat: true,
+    addPlugin: options.addPlugin,
   });
 
   const { startLocalRegistryPath, stopLocalRegistryPath } =
@@ -140,20 +149,16 @@ async function addJest(host: Tree, options: NormalizedSchema) {
   );
 
   const project = readProjectConfiguration(host, options.projectName);
-  const testTarget = project.targets.test;
+  const e2eTarget = project.targets.e2e;
 
   project.targets.e2e = {
-    ...testTarget,
+    ...e2eTarget,
     dependsOn: [`^build`],
     options: {
-      ...testTarget.options,
+      ...e2eTarget.options,
       runInBand: true,
     },
-    configurations: testTarget.configurations,
   };
-
-  // remove the jest build target
-  delete project.targets.test;
 
   updateProjectConfiguration(host, options.projectName, project);
 
@@ -170,10 +175,10 @@ async function addLintingToApplication(
     tsConfigPaths: [
       joinPathFragments(options.projectRoot, 'tsconfig.app.json'),
     ],
-    eslintFilePatterns: [`${options.projectRoot}/**/*.ts`],
     unitTestRunner: 'jest',
     skipFormat: true,
     setParserOptionsProject: false,
+    addPlugin: options.addPlugin,
   });
 
   return lintTask;
@@ -181,6 +186,7 @@ async function addLintingToApplication(
 
 export async function e2eProjectGenerator(host: Tree, schema: Schema) {
   return await e2eProjectGeneratorInternal(host, {
+    addPlugin: false,
     projectNameAndRootFormat: 'derived',
     ...schema,
   });
@@ -215,4 +221,3 @@ export async function e2eProjectGeneratorInternal(host: Tree, schema: Schema) {
 }
 
 export default e2eProjectGenerator;
-export const e2eProjectSchematic = convertNxGenerator(e2eProjectGenerator);

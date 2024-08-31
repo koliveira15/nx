@@ -1,37 +1,34 @@
 import {
+  ChampionCard,
+  ChampionPerks,
   Footer,
   Header,
   SectionHeading,
-  ChampionCard,
-  Champion,
-  ChampionPerks,
 } from '@nx/nx-dev/ui-common';
 import { ConnectWithUs } from '@nx/nx-dev/ui-community';
 import { NextSeo } from 'next-seo';
 import { useRouter } from 'next/router';
 import { champions1, champions2, champions3 } from '../lib/champions';
 
-interface CommunityProps {}
-
-export default function Community(props: CommunityProps): JSX.Element {
+export default function Community(): JSX.Element {
   const router = useRouter();
 
   return (
     <>
       <NextSeo
         title="Nx Community"
-        description="There are many ways you can connect with the open-source Nx community. The community is rich and dynamic offering Nx plugins and help on multiple platforms like GitHub, Slack and Twitter"
+        description="There are many ways you can connect with the open-source Nx community. The community is rich and dynamic offering Nx plugins and help on multiple platforms like GitHub, Discord and Twitter"
         openGraph={{
           url: 'https://nx.dev' + router.asPath,
           title: 'Nx Community',
           description:
-            'There are many ways you can connect with the open-source Nx community. The community is rich and dynamic offering Nx plugins and help on multiple platforms like GitHub, Slack and Twitter',
+            'There are many ways you can connect with the open-source Nx community. The community is rich and dynamic offering Nx plugins and help on multiple platforms like GitHub, Discord and Twitter',
           images: [
             {
-              url: 'https://nx.dev/images/nx-media.webp',
+              url: 'https://nx.dev/socials/nx-media.png',
               width: 800,
               height: 421,
-              alt: 'Nx: Smart, Fast and Extensible Build System',
+              alt: 'Nx: Smart Monorepos · Fast CI',
               type: 'image/jpeg',
             },
           ],
@@ -49,15 +46,15 @@ export default function Community(props: CommunityProps): JSX.Element {
             <ConnectWithUs />
           </div>
           <article id="nx-champions" className="relative">
-            <div className="mx-auto max-w-7xl items-stretch py-12 px-4 sm:grid sm:grid-cols-1 sm:gap-8 sm:px-6 md:grid-cols-3 lg:py-16 lg:px-8">
+            <div className="mx-auto max-w-7xl items-stretch px-4 py-12 sm:grid sm:grid-cols-1 sm:gap-8 sm:px-6 md:grid-cols-3 lg:px-8 lg:py-16">
               <div className="md:col-span-2">
                 <header>
-                  <SectionHeading as="h1" variant="title" id="champions">
+                  <SectionHeading as="h1" variant="subtitle" id="champions">
                     Get to know our
                   </SectionHeading>
                   <SectionHeading
                     as="p"
-                    variant="display"
+                    variant="title"
                     id="nx-champions"
                     className="mt-4"
                   >
@@ -84,7 +81,7 @@ export default function Community(props: CommunityProps): JSX.Element {
                   </div>
                 </div>
               </div>
-              <div className="mt-6 flex h-full w-full flex-col items-start items-stretch gap-6 md:mt-0">
+              <div className="mt-6 flex h-full w-full flex-col items-stretch gap-6 md:mt-0">
                 {champions3.map((data) => (
                   <ChampionCard key={data.name} data={data} />
                 ))}

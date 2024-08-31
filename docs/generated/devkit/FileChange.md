@@ -9,7 +9,7 @@ Description of a file change in the Nx virtual file system/
 - [content](../../devkit/documents/FileChange#content): Buffer
 - [options](../../devkit/documents/FileChange#options): TreeWriteOptions
 - [path](../../devkit/documents/FileChange#path): string
-- [type](../../devkit/documents/FileChange#type): &quot;CREATE&quot; | &quot;DELETE&quot; | &quot;UPDATE&quot;
+- [type](../../devkit/documents/FileChange#type): "CREATE" | "DELETE" | "UPDATE"
 
 ## Properties
 

@@ -1,27 +1,26 @@
 import {
   addDependenciesToPackageJson,
-  readProjectConfiguration,
-  Tree,
-  generateFiles,
-  readJson,
-  convertNxGenerator,
   formatFiles,
-  updateProjectConfiguration,
-  updateJson,
+  generateFiles,
   GeneratorCallback,
-  runTasksInSerial,
-  joinPathFragments,
-  getProjects,
-  detectPackageManager,
   getPackageManagerCommand,
+  joinPathFragments,
+  readJson,
+  readProjectConfiguration,
+  runTasksInSerial,
+  Tree,
+  updateJson,
+  updateProjectConfiguration,
 } from '@nx/devkit';
 import { libraryGenerator as jsLibraryGenerator } from '@nx/js';
+import { addTsLibDependencies } from '@nx/js/src/utils/typescript/add-tslib-dependencies';
 import { nxVersion } from 'nx/src/utils/versions';
 import generatorGenerator from '../generator/generator';
 import { CreatePackageSchema } from './schema';
 import { NormalizedSchema, normalizeSchema } from './utils/normalize-schema';
 import { hasGenerator } from '../../utils/has-generator';
 import { join } from 'path';
+import { tsLibVersion } from '@nx/js/src/utils/versions';
 
 export async function createPackageGenerator(
   host: Tree,
@@ -41,6 +40,10 @@ export async function createPackageGeneratorInternal(
 
   const options = await normalizeSchema(host, schema);
   const pluginPackageName = await addPresetGenerator(host, options);
+
+  if (options.bundler === 'tsc') {
+    tasks.push(addTsLibDependencies(host));
+  }
 
   const installTask = addDependenciesToPackageJson(
     host,
@@ -77,9 +80,10 @@ async function addPresetGenerator(
   if (!hasGenerator(host, schema.project, 'preset')) {
     await generatorGenerator(host, {
       name: 'preset',
-      project: schema.project,
+      directory: join(projectRoot, 'src/generators/preset'),
       unitTestRunner: schema.unitTestRunner,
       skipFormat: true,
+      nameAndDirectoryFormat: 'as-provided',
     });
   }
 
@@ -114,6 +118,7 @@ async function createCliPackage(
       };
       packageJson.dependencies = {
         'create-nx-workspace': nxVersion,
+        ...(options.bundler === 'tsc' && { tslib: tsLibVersion }),
       };
       return packageJson;
     }
@@ -132,8 +137,6 @@ async function createCliPackage(
     options.projectRoot,
     'bin/index.ts'
   );
-  projectConfiguration.targets.build.options.updateBuildableProjectDepsInPackageJson =
-    false;
   projectConfiguration.implicitDependencies = [options.project];
   updateProjectConfiguration(host, options.projectName, projectConfiguration);
 
@@ -191,6 +194,3 @@ function addE2eProject(host: Tree, options: NormalizedSchema) {
 }
 
 export default createPackageGenerator;
-export const createPackageSchematic = convertNxGenerator(
-  createPackageGenerator
-);

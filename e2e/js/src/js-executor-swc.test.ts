@@ -1,15 +1,10 @@
-import { satisfies } from 'semver';
 import { execSync } from 'child_process';
 import {
-  checkFilesDoNotExist,
   checkFilesExist,
   cleanupProject,
-  detectPackageManager,
   newProject,
-  packageManagerLockFile,
   readJson,
   runCLI,
-  runCLIAsync,
   tmpProjPath,
   uniq,
   updateFile,
@@ -49,43 +44,6 @@ describe('js:swc executor', () => {
     expect(tsconfig.compilerOptions.paths).toEqual({
       [`@${scope}/${lib}`]: [`libs/${lib}/src/index.ts`],
     });
-
-    // Legacy behavior (updateBuildableProjectDepsInPackageJson): add @swc/helpers if externalHelpers is true
-    // TODO(v17):  Remove this test
-    updateJson(`libs/${lib}/package.json`, (json) => {
-      delete json.dependencies['@swc/helpers'];
-      return json;
-    });
-    runCLI(
-      `build ${lib} --generateLockfile=true --updateBuildableProjectDepsInPackageJson`
-    );
-    checkFilesExist(
-      `dist/libs/${lib}/package.json`,
-      `dist/libs/${lib}/${
-        packageManagerLockFile[detectPackageManager(tmpProjPath())]
-      }`
-    );
-    expect(
-      satisfies(
-        readJson(`dist/libs/${lib}/package.json`).peerDependencies[
-          '@swc/helpers'
-        ],
-        readJson(`package.json`).dependencies['@swc/helpers']
-      )
-    ).toBeTruthy();
-
-    // Legacy behavior (updateBuildableProjectDepsInPackageJson): don't add @swc/helpers if externalHelpers is false
-    // TODO(v17):  Remove this test
-    updateJson(`libs/${lib}/.swcrc`, (json) => {
-      json.jsc.externalHelpers = false;
-      return json;
-    });
-
-    runCLI(`build ${lib}`);
-
-    expect(readJson(`dist/libs/${lib}/package.json`)).not.toHaveProperty(
-      'peerDependencies.@swc/helpers'
-    );
   }, 240_000);
 
   it('should handle swcrc path mappings', async () => {
@@ -134,4 +92,19 @@ myLib();
     }).toString();
     expect(result).toContain('x');
   }, 240_000);
+
+  it('should support --strip-leading-paths option', () => {
+    const lib = uniq('lib');
+    runCLI(`generate @nx/js:lib ${lib} --bundler=swc --no-interactive`);
+
+    runCLI(`build ${lib} --stripLeadingPaths`);
+
+    checkFilesExist(
+      `dist/libs/${lib}/package.json`,
+      `dist/libs/${lib}/index.js`,
+      `dist/libs/${lib}/lib/${lib}.js`,
+      `dist/libs/${lib}/index.d.ts`,
+      `dist/libs/${lib}/lib/${lib}.d.ts`
+    );
+  });
 });

@@ -1,8 +1,16 @@
+import { MenuItem } from '@nx/nx-dev/models-menu';
 import { outputFileSync } from 'fs-extra';
-import { bold, h, lines as mdLines, strikethrough } from 'markdown-factory';
+import {
+  bold,
+  code,
+  h2,
+  lines as mdLines,
+  strikethrough,
+  table,
+} from 'markdown-factory';
 import { join } from 'path';
 import { format, resolveConfig } from 'prettier';
-import { MenuItem } from '@nx/nx-dev/models-menu';
+import { CommandModule } from 'yargs';
 
 const stripAnsi = require('strip-ansi');
 const importFresh = require('import-fresh');
@@ -85,7 +93,7 @@ export async function generateIndexMarkdownFile(
     recipes: `/recipes/`,
     plugins: `/plugins/`,
     packages: `/packages/`,
-    cloud: `/nx-cloud/`,
+    ci: `/ci/`,
   };
   const content = json
     .map(
@@ -198,10 +206,16 @@ export async function parseCommand(
     return acc;
   }, {});
   const subcommands = await Promise.all(
-    Object.entries(getCommands(builder)).map(
-      ([subCommandName, subCommandConfig]) =>
+    Object.entries(getCommands(builder))
+      .filter(([, subCommandConfig]) => {
+        const c = subCommandConfig as CommandModule;
+        // These are all supported yargs fields for description, even though the types don't reflect that
+        // @ts-ignore
+        return c.description || c.describe || c.desc;
+      })
+      .map(([subCommandName, subCommandConfig]) =>
         parseCommand(subCommandName, subCommandConfig)
-    )
+      )
   );
 
   return {
@@ -229,36 +243,40 @@ export function generateOptionsMarkdown(
   command: ParsedCommand,
   extraHeadingLevels = 0
 ): string {
-  const lines: string[] = [];
+  type FieldName = 'name' | 'type' | 'description';
+  const items: Record<FieldName, string>[] = [];
+  const optionsField = command.subcommands?.length ? 'Shared Option' : 'Option';
+  const fields: { field: FieldName; label: string }[] = [
+    { field: 'name', label: optionsField },
+    { field: 'type', label: 'Type' },
+    { field: 'description', label: 'Description' },
+  ];
   if (Array.isArray(command.options) && !!command.options.length) {
-    lines.push(h(2 + extraHeadingLevels, 'Options'));
-
     command.options
       .sort((a, b) => sortAlphabeticallyFunction(a.name, b.name))
       .filter(({ hidden }) => !hidden)
       .forEach((option) => {
-        lines.push(
-          h(
-            3 + extraHeadingLevels,
-            option.deprecated ? strikethrough(option.name) : option.name
-          )
+        const name = option.deprecated
+          ? strikethrough(code('--' + option.name))
+          : code('--' + option.name);
+        let description = formatDescription(
+          option.description,
+          option.deprecated
         );
-        if (option.type !== undefined && option.type !== '') {
-          lines.push(`Type: \`${option.type}\``);
-        }
+        let type = option.type;
         if (option.choices !== undefined) {
-          const choices = option.choices
-            .map((c: any) => JSON.stringify(c).replace(/"/g, ''))
+          type = option.choices
+            .map((c: any) => '`' + JSON.stringify(c).replace(/"/g, '') + '`')
             .join(', ');
-          lines.push(`Choices: [${choices}]`);
         }
-        if (option.default !== undefined && option.default !== '') {
-          lines.push(
-            `Default: \`${JSON.stringify(option.default).replace(/"/g, '')}\``
-          );
+        if (option.default !== undefined) {
+          description += ` (Default: \`${JSON.stringify(option.default).replace(
+            /"/g,
+            ''
+          )}\`)`;
         }
-        lines.push(formatDescription(option.description, option.deprecated));
+        items.push({ name, type, description });
       });
   }
-  return mdLines(lines);
+  return h2('Options', table(items, fields));
 }

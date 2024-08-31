@@ -1,5 +1,5 @@
 {
-  "$schema": "http://json-schema.org/schema",
+  "$schema": "https://json-schema.org/schema",
   "cli": "nx",
   "$id": "SchematicsNxNodeApp",
   "title": "Nx Application Options Schema",
@@ -58,7 +58,8 @@
     "frontendProject": {
       "type": "string",
       "description": "Frontend project that needs to access this application. This sets up proxy configuration.",
-      "x-priority": "important"
+      "x-priority": "important",
+      "x-dropdown": "projects"
     },
     "swcJest": {
       "type": "boolean",

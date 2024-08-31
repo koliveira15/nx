@@ -1,5 +1,5 @@
 import type { ProjectNameAndRootFormat } from '@nx/devkit/src/generators/project-name-and-root-utils';
-import type { Linter } from '@nx/linter';
+import type { Linter, LinterType } from '@nx/eslint';
 
 export interface Schema {
   name: string;
@@ -14,7 +14,9 @@ export interface Schema {
   unitTestRunner?: 'jest' | 'vitest' | 'none';
   inSourceTests?: boolean;
   e2eTestRunner?: 'cypress' | 'playwright' | 'none';
-  linter?: Linter;
+  linter?: Linter | LinterType;
   standaloneConfig?: boolean;
   setParserOptionsProject?: boolean;
+  strict?: boolean;
+  addPlugin?: boolean;
 }

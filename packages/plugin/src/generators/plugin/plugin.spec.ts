@@ -1,12 +1,15 @@
+import 'nx/src/internal-testing-utils/mock-project-graph';
+
 import {
   getProjects,
   joinPathFragments,
   readJson,
   readProjectConfiguration,
   Tree,
+  updateJson,
 } from '@nx/devkit';
 import { createTreeWithEmptyWorkspace } from '@nx/devkit/testing';
-import { Linter } from '@nx/linter';
+import { Linter } from '@nx/eslint';
 import { PackageJson } from 'nx/src/utils/package-json';
 import { pluginGenerator } from './plugin';
 import { Schema } from './schema';
@@ -65,30 +68,6 @@ describe('NxPlugin Plugin Generator', () => {
             output: '.',
           },
         ],
-      },
-    });
-    expect(project.targets.lint).toEqual({
-      executor: '@nx/linter:eslint',
-      outputs: ['{options.outputFile}'],
-      options: {
-        lintFilePatterns: expect.arrayContaining([
-          'libs/my-plugin/**/*.ts',
-          'libs/my-plugin/package.json',
-        ]),
-      },
-    });
-    expect(project.targets.test).toEqual({
-      executor: '@nx/jest:jest',
-      outputs: ['{workspaceRoot}/coverage/{projectRoot}'],
-      options: {
-        jestConfig: 'libs/my-plugin/jest.config.ts',
-        passWithNoTests: true,
-      },
-      configurations: {
-        ci: {
-          ci: true,
-          codeCoverage: true,
-        },
       },
     });
   });
@@ -242,10 +221,10 @@ describe('NxPlugin Plugin Generator', () => {
     });
 
     it('should correctly setup npmScope less workspaces', async () => {
-      // remove the npmScope from nx.json
-      const nxJson = JSON.parse(tree.read('nx.json')!.toString());
-      delete nxJson.npmScope;
-      tree.write('nx.json', JSON.stringify(nxJson));
+      updateJson(tree, 'package.json', (j) => {
+        j.name = 'source';
+        return j;
+      });
 
       await pluginGenerator(tree, getSchema());
 

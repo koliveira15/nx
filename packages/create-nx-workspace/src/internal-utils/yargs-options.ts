@@ -1,24 +1,25 @@
 import chalk = require('chalk');
 import yargs = require('yargs');
-import { CreateWorkspaceOptions } from '../create-workspace-options';
-import { ciList } from '../utils/ci/ci-list';
-import { messages } from '../utils/nx/ab-testing';
+import { NxCloudChoices, messages } from '../utils/nx/ab-testing';
 import { packageManagerList } from '../utils/package-manager';
 
 export function withNxCloud<T = unknown>(argv: yargs.Argv<T>) {
+  const { message } = messages.getPrompt('setupCI');
+
   const result = argv.option('nxCloud', {
-    describe: chalk.dim(messages.getPromptMessage('nxCloudCreation')),
-    type: 'boolean',
+    alias: 'ci',
+    describe: chalk.dim(message),
+    choices: NxCloudChoices,
+    type: 'string',
   });
   return result;
 }
 
-export function withCI<T = unknown>(argv: yargs.Argv<T>) {
-  return argv.option('ci', {
-    describe: chalk.dim`Generate a CI workflow file`,
-    choices: ciList,
-    defaultDescription: '',
-    type: 'string',
+export function withUseGitHub<T = unknown>(argv: yargs.Argv<T>) {
+  return argv.option('useGitHub', {
+    describe: chalk.dim`Will you be using GitHub as your git hosting provider?`,
+    type: 'boolean',
+    default: false,
   });
 }
 

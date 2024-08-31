@@ -1,18 +1,21 @@
-import { join } from 'path';
-import { satisfies } from 'semver';
+import { NX_VERSION, normalizePath, workspaceRoot } from '@nx/devkit';
+import { findNpmDependencies } from '@nx/js/src/utils/find-npm-dependencies';
+import { ESLintUtils } from '@typescript-eslint/utils';
 import { AST } from 'jsonc-eslint-parser';
 import { type JSONLiteral } from 'jsonc-eslint-parser/lib/parser/ast';
-import { normalizePath, workspaceRoot } from '@nx/devkit';
-import { findNpmDependencies } from '@nx/js/src/utils/find-npm-dependencies';
-
-import { createESLintRule } from '../utils/create-eslint-rule';
-import { readProjectGraph } from '../utils/project-graph-utils';
-import { findProject, getSourceFilePath } from '../utils/runtime-lint-utils';
+import { join } from 'path';
+import { satisfies } from 'semver';
 import {
   getAllDependencies,
   getPackageJson,
   getProductionDependencies,
 } from '../utils/package-json-utils';
+import { readProjectGraph } from '../utils/project-graph-utils';
+import {
+  findProject,
+  getParserServices,
+  getSourceFilePath,
+} from '../utils/runtime-lint-utils';
 
 export type Options = [
   {
@@ -20,10 +23,10 @@ export type Options = [
     checkMissingDependencies?: boolean;
     checkObsoleteDependencies?: boolean;
     checkVersionMismatches?: boolean;
-    checkMissingPackageJson?: boolean;
     ignoredDependencies?: string[];
     ignoredFiles?: string[];
     includeTransitiveDependencies?: boolean;
+    useLocalPathsForWorkspaceDependencies?: boolean;
   }
 ];
 
@@ -35,26 +38,30 @@ export type MessageIds =
 
 export const RULE_NAME = 'dependency-checks';
 
-export default createESLintRule<Options, MessageIds>({
+export default ESLintUtils.RuleCreator(
+  () =>
+    `https://github.com/nrwl/nx/blob/${NX_VERSION}/docs/generated/packages/eslint-plugin/documents/dependency-checks.md`
+)<Options, MessageIds>({
   name: RULE_NAME,
   meta: {
     type: 'suggestion',
     docs: {
       description: `Checks dependencies in project's package.json for version mismatches`,
-      recommended: 'error',
+      recommended: 'recommended',
     },
     fixable: 'code',
     schema: [
       {
         type: 'object',
         properties: {
-          buildTargets: [{ type: 'string' }],
-          ignoredDependencies: [{ type: 'string' }],
-          ignoredFiles: [{ type: 'string' }],
+          buildTargets: { type: 'array', items: { type: 'string' } },
+          ignoredDependencies: { type: 'array', items: { type: 'string' } },
+          ignoredFiles: { type: 'array', items: { type: 'string' } },
           checkMissingDependencies: { type: 'boolean' },
           checkObsoleteDependencies: { type: 'boolean' },
           checkVersionMismatches: { type: 'boolean' },
           includeTransitiveDependencies: { type: 'boolean' },
+          useLocalPathsForWorkspaceDependencies: { type: 'boolean' },
         },
         additionalProperties: false,
       },
@@ -75,6 +82,7 @@ export default createESLintRule<Options, MessageIds>({
       ignoredDependencies: [],
       ignoredFiles: [],
       includeTransitiveDependencies: false,
+      useLocalPathsForWorkspaceDependencies: false,
     },
   ],
   create(
@@ -88,13 +96,14 @@ export default createESLintRule<Options, MessageIds>({
         checkObsoleteDependencies,
         checkVersionMismatches,
         includeTransitiveDependencies,
+        useLocalPathsForWorkspaceDependencies,
       },
     ]
   ) {
-    if (!(context.parserServices as any).isJSON) {
+    if (!getParserServices(context).isJSON) {
       return {};
     }
-    const fileName = normalizePath(context.getFilename());
+    const fileName = normalizePath(context.filename ?? context.getFilename());
     // support only package.json
     if (!fileName.endsWith('/package.json')) {
       return {};
@@ -138,21 +147,14 @@ export default createESLintRule<Options, MessageIds>({
       {
         includeTransitiveDependencies,
         ignoredFiles,
+        useLocalPathsForWorkspaceDependencies,
       }
     );
     const expectedDependencyNames = Object.keys(npmDependencies);
 
-    const projPackageJsonPath = join(
-      workspaceRoot,
-      sourceProject.data.root,
-      'package.json'
-    );
+    const packageJson = JSON.parse(context.sourceCode.getText());
+    const projPackageJsonDeps = getProductionDependencies(packageJson);
 
-    globalThis.projPackageJsonDeps ??= getProductionDependencies(
-      getPackageJson(projPackageJsonPath)
-    );
-    const projPackageJsonDeps: Record<string, string> =
-      globalThis.projPackageJsonDeps;
     const rootPackageJsonDeps = getAllDependencies(rootPackageJson);
 
     function validateMissingDependencies(node: AST.JSONProperty) {
@@ -208,8 +210,11 @@ export default createESLintRule<Options, MessageIds>({
         return;
       }
       if (
+        npmDependencies[packageName].startsWith('file:') ||
+        packageRange.startsWith('file:') ||
         npmDependencies[packageName] === '*' ||
         packageRange === '*' ||
+        packageRange === 'workspace:*' ||
         satisfies(npmDependencies[packageName], packageRange, {
           includePrerelease: true,
         })
@@ -303,14 +308,14 @@ export default createESLintRule<Options, MessageIds>({
               .join(),
           },
           fix: (fixer) => {
+            expectedDependencyNames.sort().reduce((acc, d) => {
+              acc[d] = rootPackageJsonDeps[d] || npmDependencies[d];
+              return acc;
+            }, projPackageJsonDeps);
+
             const dependencies = Object.keys(projPackageJsonDeps)
               .map((d) => `\n    "${d}": "${projPackageJsonDeps[d]}"`)
               .join(',');
-
-            expectedDependencyNames.sort().reduce((acc, d) => {
-              acc[d] = rootPackageJsonDeps[d] || dependencies[d];
-              return acc;
-            }, projPackageJsonDeps);
 
             if (!node.properties.length) {
               return fixer.replaceText(

@@ -15,9 +15,11 @@ import {
   EntryPointNode,
   isEntryPoint,
   isEntryPointInProgress,
+  isPackage,
+  PackageNode,
 } from 'ng-packagr/lib/ng-package/nodes';
 import { setDependenciesTsConfigPaths } from 'ng-packagr/lib/ts/tsconfig';
-import * as ora from 'ora';
+import ora from 'ora';
 import * as path from 'path';
 import * as ts from 'typescript';
 import { getInstalledAngularVersionInfo } from '../../../../utilities/angular-version-utils';
@@ -36,9 +38,12 @@ export const compileNgcTransformFactory = (
       discardStdin: false,
     });
 
+    const entryPoints: EntryPointNode[] = graph.filter(isEntryPoint);
+    const entryPoint: EntryPointNode = graph.find(isEntryPointInProgress());
+    const ngPackageNode: PackageNode = graph.find(isPackage);
+    const projectBasePath = ngPackageNode.data.primary.basePath;
+
     try {
-      const entryPoint: EntryPointNode = graph.find(isEntryPointInProgress());
-      const entryPoints: EntryPointNode[] = graph.filter(isEntryPoint);
       // Add paths mappings for dependencies
       const tsConfig = setDependenciesTsConfigPaths(
         entryPoint.data.tsConfig,
@@ -79,11 +84,11 @@ export const compileNgcTransformFactory = (
       }
 
       entryPoint.cache.stylesheetProcessor ??= new StylesheetProcessor(
+        projectBasePath,
         basePath,
         cssUrl,
         styleIncludePaths,
         options.cacheEnabled && options.cacheDirectory,
-        options.watch,
         options.tailwindConfig
       ) as any;
 
@@ -91,6 +96,7 @@ export const compileNgcTransformFactory = (
         graph,
         tsConfig,
         moduleResolutionCache,
+        options,
         {
           outDir: path.dirname(esmModulePath),
           declarationDir: path.dirname(declarations),
@@ -101,8 +107,7 @@ export const compileNgcTransformFactory = (
               : ts.ScriptTarget.ES2020,
         },
         entryPoint.cache.stylesheetProcessor as any,
-        ngccProcessor,
-        options.watch
+        ngccProcessor
       );
     } catch (error) {
       spinner.fail();

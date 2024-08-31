@@ -2,82 +2,81 @@ import { assertTextOnPage } from './helpers';
 import { test, expect } from '@playwright/test';
 
 const pages: Array<{ title: string; path: string }> = [
-  { title: 'What is Nx Cloud?', path: '/nx-cloud/intro/what-is-nx-cloud' },
+  {
+    title: 'Continuous Integration with Nx',
+    path: '/ci/intro/ci-with-nx',
+  },
   {
     title: 'Recording Non-Nx Commands',
-    path: '/nx-cloud/set-up/record-commands',
+    path: '/ci/recipes/other/record-commands',
   },
   {
     title: 'Enable GitHub PR Integration',
-    path: '/nx-cloud/set-up/github',
-  },
-  {
-    title: 'User Management',
-    path: '/nx-cloud/account/users',
+    path: '/ci/recipes/source-control-integration/github',
   },
   {
     title: 'Connecting Nx Cloud to your existing Google identity provider',
-    path: '/nx-cloud/account/google-auth',
+    path: '/ci/recipes/security/google-auth',
   },
   {
     title: 'Access Tokens',
-    path: '/nx-cloud/account/access-tokens',
+    path: '/ci/recipes/security/access-tokens',
   },
   {
-    title: 'Security Scenarios',
-    path: '/nx-cloud/account/scenarios',
+    title: 'Cache Security',
+    path: '/ci/concepts/cache-security',
   },
   {
-    title: 'End to End Encryption',
-    path: '/nx-cloud/account/encryption',
+    title: 'Enable End to End Encryption',
+    path: '/ci/recipes/security/encryption',
   },
   {
     title: 'Running Nx Cloud Enterprise',
-    path: '/nx-cloud/private-cloud/get-started',
+    path: '/ci/recipes/enterprise/on-premise/on-premise',
   },
   {
     title: 'Auth (Basic)',
-    path: '/nx-cloud/private-cloud/auth-single-admin',
+    path: '/ci/recipes/enterprise/on-premise/auth-single-admin',
   },
   {
     title: 'GitHub Auth',
-    path: '/nx-cloud/private-cloud/auth-github',
+    path: '/ci/recipes/enterprise/on-premise/auth-github',
   },
   {
     title: 'GitLab Auth',
-    path: '/nx-cloud/private-cloud/auth-gitlab',
+    path: '/ci/recipes/enterprise/on-premise/auth-gitlab',
   },
   {
-    title: 'Setting up a dedicated NxCloud VM',
-    path: '/nx-cloud/private-cloud/ami-setup',
+    title: 'Setting up a dedicated Nx Cloud VM',
+    path: '/ci/recipes/enterprise/on-premise/ami-setup',
   },
   {
-    title: 'BitBucket Auth',
-    path: '/nx-cloud/private-cloud/auth-bitbucket',
+    title: 'BitBucket Cloud Auth',
+    path: '/ci/recipes/enterprise/on-premise/auth-bitbucket',
+  },
+  {
+    title: 'BitBucket Data Center Auth',
+    path: '/ci/recipes/enterprise/on-premise/auth-bitbucket-data-center',
   },
   {
     title: 'SAML Auth',
-    path: '/nx-cloud/private-cloud/auth-saml',
+    path: '/ci/recipes/enterprise/on-premise/auth-saml',
   },
   {
     title: 'Advanced Configuration',
-    path: '/nx-cloud/private-cloud/advanced-config',
+    path: '/ci/recipes/enterprise/on-premise/advanced-config',
   },
   {
     title: 'Configuring the Cloud Runner / Nx CLI',
-    path: '/nx-cloud/reference/config',
+    path: '/ci/reference/config',
   },
   {
     title: 'Environment Variables',
-    path: '/nx-cloud/reference/env-vars',
+    path: '/ci/reference/env-vars',
   },
   {
-    title: 'Nx Cloud Server API Reference',
-    path: '/nx-cloud/reference/server-api',
-  },
-  {
-    title: 'nx-cloud - Release notes',
-    path: '/nx-cloud/reference/release-notes',
+    title: 'Enterprise Release Notes',
+    path: '/ci/reference/release-notes',
   },
 ];
 

@@ -4,7 +4,7 @@ A class which builds up a project graph
 
 **`Deprecated`**
 
-The ProjectGraphProcessor has been deprecated. Use a [CreateNodes](../../devkit/documents/CreateNodes) and/or a [CreateDependencies](../../devkit/documents/CreateDependencies) instead. This will be removed in Nx 18.
+The ProjectGraphProcessor has been deprecated. Use a [CreateNodes](../../devkit/documents/CreateNodes) and/or a [CreateDependencies](../../devkit/documents/CreateDependencies) instead. This will be removed in Nx 20.
 
 ## Table of contents
 
@@ -14,7 +14,6 @@ The ProjectGraphProcessor has been deprecated. Use a [CreateNodes](../../devkit/
 
 ### Properties
 
-- [fileMap](../../devkit/documents/ProjectGraphBuilder#filemap): ProjectFileMap
 - [graph](../../devkit/documents/ProjectGraphBuilder#graph): ProjectGraph
 - [removedEdges](../../devkit/documents/ProjectGraphBuilder#removededges): Object
 
@@ -27,11 +26,8 @@ The ProjectGraphProcessor has been deprecated. Use a [CreateNodes](../../devkit/
 - [addImplicitDependency](../../devkit/documents/ProjectGraphBuilder#addimplicitdependency)
 - [addNode](../../devkit/documents/ProjectGraphBuilder#addnode)
 - [addStaticDependency](../../devkit/documents/ProjectGraphBuilder#addstaticdependency)
-- [calculateAlreadySetTargetDeps](../../devkit/documents/ProjectGraphBuilder#calculatealreadysettargetdeps)
-- [calculateTargetDepsFromFiles](../../devkit/documents/ProjectGraphBuilder#calculatetargetdepsfromfiles)
 - [getUpdatedProjectGraph](../../devkit/documents/ProjectGraphBuilder#getupdatedprojectgraph)
 - [mergeProjectGraph](../../devkit/documents/ProjectGraphBuilder#mergeprojectgraph)
-- [removeDependenciesWithNode](../../devkit/documents/ProjectGraphBuilder#removedependencieswithnode)
 - [removeDependency](../../devkit/documents/ProjectGraphBuilder#removedependency)
 - [removeNode](../../devkit/documents/ProjectGraphBuilder#removenode)
 - [setVersion](../../devkit/documents/ProjectGraphBuilder#setversion)
@@ -40,22 +36,21 @@ The ProjectGraphProcessor has been deprecated. Use a [CreateNodes](../../devkit/
 
 ### constructor
 
-• **new ProjectGraphBuilder**(`graph?`, `fileMap?`)
+• **new ProjectGraphBuilder**(`graph?`, `projectFileMap?`, `nonProjectFiles?`): [`ProjectGraphBuilder`](../../devkit/documents/ProjectGraphBuilder)
 
 #### Parameters
 
-| Name       | Type                                                      |
-| :--------- | :-------------------------------------------------------- |
-| `graph?`   | [`ProjectGraph`](../../devkit/documents/ProjectGraph)     |
-| `fileMap?` | [`ProjectFileMap`](../../devkit/documents/ProjectFileMap) |
+| Name               | Type                                                      |
+| :----------------- | :-------------------------------------------------------- |
+| `graph?`           | [`ProjectGraph`](../../devkit/documents/ProjectGraph)     |
+| `projectFileMap?`  | [`ProjectFileMap`](../../devkit/documents/ProjectFileMap) |
+| `nonProjectFiles?` | [`FileData`](../../devkit/documents/FileData)[]           |
+
+#### Returns
+
+[`ProjectGraphBuilder`](../../devkit/documents/ProjectGraphBuilder)
 
 ## Properties
-
-### fileMap
-
-• `Private` `Readonly` **fileMap**: [`ProjectFileMap`](../../devkit/documents/ProjectFileMap)
-
----
 
 ### graph
 
@@ -69,7 +64,7 @@ The ProjectGraphProcessor has been deprecated. Use a [CreateNodes](../../devkit/
 
 #### Index signature
 
-▪ [source: `string`]: `Set`<`string`\>
+▪ [source: `string`]: `Set`\<`string`\>
 
 ## Methods
 
@@ -118,10 +113,6 @@ Adds dynamic dependency from source project to target project
 
 Add an explicit dependency from a file in source project to target project
 
-**`Deprecated`**
-
-this method will be removed in v17. Use [addStaticDependency](../../devkit/documents/ProjectGraphBuilder#addstaticdependency) or [addDynamicDependency](../../devkit/documents/ProjectGraphBuilder#adddynamicdependency) instead
-
 #### Parameters
 
 | Name                | Type     |
@@ -133,6 +124,10 @@ this method will be removed in v17. Use [addStaticDependency](../../devkit/docum
 #### Returns
 
 `void`
+
+**`Deprecated`**
+
+this method will be removed in v17. Use [addStaticDependency](../../devkit/documents/ProjectGraphBuilder#addstaticdependency) or [addDynamicDependency](../../devkit/documents/ProjectGraphBuilder#adddynamicdependency) instead
 
 ---
 
@@ -211,38 +206,6 @@ Adds static dependency from source project to target project
 
 ---
 
-### calculateAlreadySetTargetDeps
-
-▸ `Private` **calculateAlreadySetTargetDeps**(`sourceProject`): `Map`<`string`, `Map`<`string`, [`ProjectGraphDependency`](../../devkit/documents/ProjectGraphDependency)\>\>
-
-#### Parameters
-
-| Name            | Type     |
-| :-------------- | :------- |
-| `sourceProject` | `string` |
-
-#### Returns
-
-`Map`<`string`, `Map`<`string`, [`ProjectGraphDependency`](../../devkit/documents/ProjectGraphDependency)\>\>
-
----
-
-### calculateTargetDepsFromFiles
-
-▸ `Private` **calculateTargetDepsFromFiles**(`sourceProject`): `Map`<`string`, `Set`<`string`\>\>
-
-#### Parameters
-
-| Name            | Type     |
-| :-------------- | :------- |
-| `sourceProject` | `string` |
-
-#### Returns
-
-`Map`<`string`, `Set`<`string`\>\>
-
----
-
 ### getUpdatedProjectGraph
 
 ▸ **getUpdatedProjectGraph**(): [`ProjectGraph`](../../devkit/documents/ProjectGraph)
@@ -264,22 +227,6 @@ Merges the nodes and dependencies of p into the built project graph.
 | Name | Type                                                  |
 | :--- | :---------------------------------------------------- |
 | `p`  | [`ProjectGraph`](../../devkit/documents/ProjectGraph) |
-
-#### Returns
-
-`void`
-
----
-
-### removeDependenciesWithNode
-
-▸ `Private` **removeDependenciesWithNode**(`name`): `void`
-
-#### Parameters
-
-| Name   | Type     |
-| :----- | :------- |
-| `name` | `string` |
 
 #### Returns
 

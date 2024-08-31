@@ -1,8 +1,8 @@
-// TODO(v18): remove Cypress
+// TODO(katerina): Nx 19 -> remove Cypress
 import { installedCypressVersion } from '@nx/cypress/src/utils/cypress-version';
 import { logger, Tree } from '@nx/devkit';
 import { createTreeWithEmptyWorkspace } from '@nx/devkit/testing';
-import { Linter } from '@nx/linter';
+import { Linter } from '@nx/eslint';
 import applicationGenerator from '../application/application';
 import componentGenerator from '../component/component';
 import libraryGenerator from '../library/library';
@@ -27,25 +27,24 @@ describe('react:storybook-configuration', () => {
     mockedInstalledCypressVersion.mockReturnValue(10);
     jest.spyOn(logger, 'warn').mockImplementation(() => {});
     jest.spyOn(logger, 'debug').mockImplementation(() => {});
-    jest.resetModules();
   });
 
   afterEach(() => {
+    jest.resetModules();
     jest.restoreAllMocks();
   });
 
   it('should configure everything and install correct dependencies', async () => {
     appTree = await createTestUILib('test-ui-lib');
     await storybookConfigurationGenerator(appTree, {
-      name: 'test-ui-lib',
+      project: 'test-ui-lib',
+      addPlugin: true,
     });
 
     expect(
-      appTree.read('libs/test-ui-lib/.storybook/main.ts', 'utf-8')
+      appTree.read('test-ui-lib/.storybook/main.ts', 'utf-8')
     ).toMatchSnapshot();
-    expect(
-      appTree.exists('libs/test-ui-lib/tsconfig.storybook.json')
-    ).toBeTruthy();
+    expect(appTree.exists('test-ui-lib/tsconfig.storybook.json')).toBeTruthy();
 
     const packageJson = JSON.parse(appTree.read('package.json', 'utf-8'));
     expect(packageJson.devDependencies['@storybook/react-vite']).toBeDefined();
@@ -61,12 +60,13 @@ describe('react:storybook-configuration', () => {
   it('should generate stories for components', async () => {
     appTree = await createTestUILib('test-ui-lib');
     await storybookConfigurationGenerator(appTree, {
-      name: 'test-ui-lib',
+      project: 'test-ui-lib',
       generateStories: true,
+      addPlugin: true,
     });
 
     expect(
-      appTree.exists('libs/test-ui-lib/src/lib/test-ui-lib.stories.tsx')
+      appTree.exists('test-ui-lib/src/lib/test-ui-lib.stories.tsx')
     ).toBeTruthy();
   });
 
@@ -74,7 +74,7 @@ describe('react:storybook-configuration', () => {
     appTree = await createTestUILib('test-ui-lib', true);
 
     appTree.write(
-      'libs/test-ui-lib/src/lib/test-ui-libplain.js',
+      'test-ui-lib/src/lib/test-ui-libplain.js',
       `import React from 'react';
 
       import './test.scss';
@@ -91,36 +91,34 @@ describe('react:storybook-configuration', () => {
       `
     );
     await storybookConfigurationGenerator(appTree, {
-      name: 'test-ui-lib',
+      project: 'test-ui-lib',
       generateStories: true,
       js: true,
+      addPlugin: true,
     });
 
     expect(
-      appTree.read(
-        'libs/test-ui-lib/src/lib/test-ui-libplain.stories.jsx',
-        'utf-8'
-      )
+      appTree.read('test-ui-lib/src/lib/test-ui-libplain.stories.jsx', 'utf-8')
     ).toMatchSnapshot();
   });
 
   it('should configure everything at once', async () => {
     appTree = await createTestAppLib('test-ui-app');
     await storybookConfigurationGenerator(appTree, {
-      name: 'test-ui-app',
+      project: 'test-ui-app',
+      addPlugin: true,
     });
 
-    expect(appTree.exists('apps/test-ui-app/.storybook/main.ts')).toBeTruthy();
-    expect(
-      appTree.exists('apps/test-ui-app/tsconfig.storybook.json')
-    ).toBeTruthy();
+    expect(appTree.exists('test-ui-app/.storybook/main.ts')).toBeTruthy();
+    expect(appTree.exists('test-ui-app/tsconfig.storybook.json')).toBeTruthy();
   });
 
   it('should generate stories for components', async () => {
     appTree = await createTestAppLib('test-ui-app');
     await storybookConfigurationGenerator(appTree, {
-      name: 'test-ui-app',
+      project: 'test-ui-app',
       generateStories: true,
+      addPlugin: true,
     });
 
     // Currently the auto-generate stories feature only picks up components under the 'lib' directory.
@@ -128,7 +126,7 @@ describe('react:storybook-configuration', () => {
     // under the specified 'lib' directory
     expect(
       appTree.read(
-        'apps/test-ui-app/src/app/my-component/my-component.stories.tsx',
+        'test-ui-app/src/app/my-component/my-component.stories.tsx',
         'utf-8'
       )
     ).toMatchSnapshot();
@@ -137,14 +135,15 @@ describe('react:storybook-configuration', () => {
   it('should generate stories for components without interaction tests', async () => {
     appTree = await createTestAppLib('test-ui-app');
     await storybookConfigurationGenerator(appTree, {
-      name: 'test-ui-app',
+      project: 'test-ui-app',
       generateStories: true,
       interactionTests: false,
+      addPlugin: true,
     });
 
     expect(
       appTree.read(
-        'apps/test-ui-app/src/app/my-component/my-component.stories.tsx',
+        'test-ui-app/src/app/my-component/my-component.stories.tsx',
         'utf-8'
       )
     ).toMatchSnapshot();
@@ -155,7 +154,7 @@ export async function createTestUILib(
   libName: string,
   plainJS = false
 ): Promise<Tree> {
-  let appTree = createTreeWithEmptyWorkspace({ layout: 'apps-libs' });
+  let appTree = createTreeWithEmptyWorkspace();
 
   await libraryGenerator(appTree, {
     linter: Linter.EsLint,
@@ -165,6 +164,8 @@ export async function createTestUILib(
     style: 'css',
     unitTestRunner: 'none',
     name: libName,
+    projectNameAndRootFormat: 'as-provided',
+    addPlugin: true,
   });
   return appTree;
 }
@@ -173,7 +174,7 @@ export async function createTestAppLib(
   libName: string,
   plainJS = false
 ): Promise<Tree> {
-  let appTree = createTreeWithEmptyWorkspace({ layout: 'apps-libs' });
+  let appTree = createTreeWithEmptyWorkspace();
 
   await applicationGenerator(appTree, {
     e2eTestRunner: 'none',
@@ -183,6 +184,8 @@ export async function createTestAppLib(
     unitTestRunner: 'none',
     name: libName,
     js: plainJS,
+    projectNameAndRootFormat: 'as-provided',
+    addPlugin: true,
   });
 
   await componentGenerator(appTree, {

@@ -19,10 +19,7 @@ export async function* ssrDevServerExecutor(
     options.browserTarget,
     context.projectGraph
   );
-  const serverTarget = parseTargetString(
-    options.serverTarget,
-    context.projectGraph
-  );
+  const serverTarget = parseTargetString(options.serverTarget, context);
   const browserOptions = readTargetOptions<WebpackExecutorOptions>(
     browserTarget,
     context
@@ -53,8 +50,6 @@ export async function* ssrDevServerExecutor(
   let browserBuilt = false;
   let nodeStarted = false;
   const combined = combineAsyncIterables(runBrowser, runServer);
-
-  process.env['port'] = `${options.port}`;
 
   for await (const output of combined) {
     if (!output.success) throw new Error('Could not build application');

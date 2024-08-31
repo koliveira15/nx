@@ -8,7 +8,11 @@ import {
 
 describe('updatePaths', () => {
   const deps: DependentBuildableProjectNode[] = [
-    { name: '@proj/lib', node: {} as any, outputs: ['dist/libs/lib'] },
+    {
+      name: '@proj/lib',
+      node: { data: { root: 'libs/lib' } } as any,
+      outputs: ['dist/libs/lib'],
+    },
   ];
 
   it('should add path', () => {
@@ -30,7 +34,11 @@ describe('updatePaths', () => {
     updatePaths(deps, paths);
     expect(paths).toEqual({
       '@proj/lib': ['dist/libs/lib'],
-      '@proj/lib/sub': ['dist/libs/lib/sub'],
+      '@proj/lib/sub': [
+        'dist/libs/lib/sub',
+        'dist/libs/lib/sub/src/index',
+        'dist/libs/lib/sub/src/index.ts',
+      ],
     });
   });
 });
@@ -158,6 +166,101 @@ describe('calculateProjectDependencies', () => {
         { name: '@prefixed-lib' },
         { name: 'formik' },
         { name: 'some-lib' },
+      ],
+    });
+  });
+
+  it('should include all top-level dependencies, even ones that are also transitive', async () => {
+    const graph: ProjectGraph = {
+      nodes: {
+        example: {
+          type: 'lib',
+          name: 'example',
+          data: {
+            root: '/root/example',
+            targets: {
+              build: {
+                executor: 'x',
+              },
+            },
+          },
+        },
+        example2: {
+          type: 'lib',
+          name: 'example2',
+          data: {
+            root: '/root/example2',
+            targets: {
+              build: {
+                executor: 'x',
+              },
+            },
+          },
+        },
+      },
+      externalNodes: {
+        'npm:formik': {
+          type: 'npm',
+          name: 'npm:formik',
+          data: {
+            packageName: 'formik',
+            version: '0.0.0',
+          },
+        },
+        'npm:foo': {
+          type: 'npm',
+          name: 'npm:foo',
+          data: {
+            packageName: 'foo',
+            version: '0.0.0',
+          },
+        },
+      },
+      dependencies: {
+        example: [
+          // when example2 dependency is listed first
+          {
+            source: 'example',
+            target: 'example2',
+            type: DependencyType.static,
+          },
+          {
+            source: 'example',
+            target: 'npm:formik',
+            type: DependencyType.static,
+          },
+        ],
+        example2: [
+          // and example2 also depends on npm:formik
+          {
+            source: 'example2',
+            target: 'npm:formik',
+            type: DependencyType.static,
+          },
+          {
+            source: 'example2',
+            target: 'npm:foo',
+            type: DependencyType.static,
+          },
+        ],
+      },
+    };
+
+    const results = calculateProjectDependencies(
+      graph,
+      'root',
+      'example',
+      'build',
+      undefined
+    );
+    expect(results).toMatchObject({
+      target: {
+        name: 'example',
+      },
+      topLevelDependencies: [
+        // expect example2 and formik as top-level deps, but not foo
+        expect.objectContaining({ name: 'example2' }),
+        expect.objectContaining({ name: 'formik' }),
       ],
     });
   });
@@ -293,26 +396,36 @@ describe('calculateDependenciesFromTaskGraph', () => {
           id: 'lib1:build',
           overrides: {},
           target: { project: 'lib1', target: 'build' },
+          outputs: [],
+          parallelism: true,
         },
         'lib2:build': {
           id: 'lib2:build',
           overrides: {},
           target: { project: 'lib2', target: 'build' },
+          outputs: [],
+          parallelism: true,
         },
         'lib2:build-base': {
           id: 'lib2:build-base',
           overrides: {},
           target: { project: 'lib2', target: 'build-base' },
+          outputs: [],
+          parallelism: true,
         },
         'lib3:build': {
           id: 'lib3:build',
           overrides: {},
           target: { project: 'lib3', target: 'build' },
+          outputs: [],
+          parallelism: true,
         },
         'lib4:build': {
           id: 'lib4:build',
           overrides: {},
           target: { project: 'lib4', target: 'build' },
+          outputs: [],
+          parallelism: true,
         },
       },
     };
@@ -458,41 +571,57 @@ describe('calculateDependenciesFromTaskGraph', () => {
           id: 'lib1:build',
           overrides: {},
           target: { project: 'lib1', target: 'build' },
+          outputs: [],
+          parallelism: true,
         },
         'lib1:build-base': {
           id: 'lib1:build-base',
           overrides: {},
           target: { project: 'lib1', target: 'build-base' },
+          outputs: [],
+          parallelism: true,
         },
         'lib2:build': {
           id: 'lib2:build',
           overrides: {},
           target: { project: 'lib2', target: 'build' },
+          outputs: [],
+          parallelism: true,
         },
         'lib2:build-base': {
           id: 'lib2:build-base',
           overrides: {},
           target: { project: 'lib2', target: 'build-base' },
+          outputs: [],
+          parallelism: true,
         },
         'lib3:build': {
           id: 'lib3:build',
           overrides: {},
           target: { project: 'lib3', target: 'build' },
+          outputs: [],
+          parallelism: true,
         },
         'lib3:build-base': {
           id: 'lib3:build-base',
           overrides: {},
           target: { project: 'lib3', target: 'build-base' },
+          outputs: [],
+          parallelism: true,
         },
         'lib4:build': {
           id: 'lib4:build',
           overrides: {},
           target: { project: 'lib4', target: 'build' },
+          outputs: [],
+          parallelism: true,
         },
         'lib4:build-base': {
           id: 'lib4:build-base',
           overrides: {},
           target: { project: 'lib4', target: 'build-base' },
+          outputs: [],
+          parallelism: true,
         },
       },
     };

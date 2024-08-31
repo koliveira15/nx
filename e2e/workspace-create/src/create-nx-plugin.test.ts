@@ -1,11 +1,11 @@
 import {
   checkFilesExist,
+  cleanupProject,
   getSelectedPackageManager,
   packageManagerLockFile,
   runCLI,
-  uniq,
   runCreatePlugin,
-  cleanupProject,
+  uniq,
 } from '@nx/e2e/utils';
 
 describe('create-nx-plugin', () => {
@@ -64,7 +64,7 @@ describe('create-nx-plugin', () => {
     checkFilesExist(
       `dist/packages/${pluginName}/package.json`,
       `dist/packages/${pluginName}/generators.json`,
-      `packages/${pluginName}-e2e/tests/${pluginName}.spec.ts`
+      `packages/${pluginName}-e2e/src/${pluginName}.spec.ts`
     );
 
     runCLI(`build create-${pluginName}-package`);

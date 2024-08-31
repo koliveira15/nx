@@ -23,10 +23,6 @@ const pages: Array<{ title: string; path: string }> = [
     title: '@nx/angular:component-story',
     path: '/packages/angular/generators/component-story',
   },
-  {
-    title: '@nx/angular:convert-tslint-to-eslint',
-    path: '/packages/angular/generators/convert-tslint-to-eslint',
-  },
   { title: '@nx/angular:init', path: '/packages/angular/generators/init' },
   {
     title: '@nx/angular:library',
@@ -100,10 +96,6 @@ const pages: Array<{ title: string; path: string }> = [
   { title: '@nx/cypress', path: '/packages/cypress' },
   { title: '@nx/cypress:init', path: '/packages/cypress/generators/init' },
   {
-    title: '@nx/cypress:cypress-project',
-    path: '/packages/cypress/generators/cypress-project',
-  },
-  {
     title: '@nx/cypress:cypress',
     path: '/packages/cypress/executors/cypress',
   },
@@ -173,24 +165,20 @@ const pages: Array<{ title: string; path: string }> = [
   },
   { title: '@nx/js:tsc', path: '/packages/js/executors/tsc' },
   { title: '@nx/js:swc', path: '/packages/js/executors/swc' },
-  { title: '@nx/linter', path: '/packages/linter' },
+  { title: '@nx/eslint', path: '/packages/eslint' },
   {
-    title: '@nx/linter:workspace-rules-project',
-    path: '/packages/linter/generators/workspace-rules-project',
+    title: '@nx/eslint:workspace-rules-project',
+    path: '/packages/eslint/generators/workspace-rules-project',
   },
   {
-    title: '@nx/linter',
-    path: '/packages/linter/generators/workspace-rule',
+    title: '@nx/eslint',
+    path: '/packages/eslint/generators/workspace-rule',
   },
-  { title: '@nx/linter', path: '/packages/linter/executors/eslint' },
+  { title: '@nx/eslint', path: '/packages/eslint/executors/lint' },
   { title: '@nx/nest', path: '/packages/nest' },
   {
     title: '@nx/nest:application',
     path: '/packages/nest/generators/application',
-  },
-  {
-    title: '@nx/nest:convert-tslint-to-eslint',
-    path: '/packages/nest/generators/convert-tslint-to-eslint',
   },
   { title: '@nx/nest:init', path: '/packages/nest/generators/init' },
   { title: '@nx/nest:library', path: '/packages/nest/generators/library' },
@@ -283,7 +271,6 @@ const pages: Array<{ title: string; path: string }> = [
     title: '@nx/plugin:executor',
     path: '/packages/plugin/generators/executor',
   },
-  { title: '@nx/plugin:e2e', path: '/packages/plugin/executors/e2e' },
   { title: '@nx/react', path: '/packages/react' },
   { title: '@nx/react:init', path: '/packages/react/generators/init' },
   {
@@ -442,10 +429,6 @@ const pages: Array<{ title: string; path: string }> = [
   {
     title: '@nx/workspace:new',
     path: '/packages/workspace/generators/new',
-  },
-  {
-    title: '@nx/workspace:workspace-generator',
-    path: '/packages/workspace/generators/workspace-generator',
   },
   {
     title: '@nx/workspace:run-command',

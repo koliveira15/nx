@@ -1,3 +1,5 @@
+import 'nx/src/internal-testing-utils/mock-project-graph';
+
 import {
   getProjects,
   NxJsonConfiguration,
@@ -9,11 +11,12 @@ import {
   updateJson,
 } from '@nx/devkit';
 import { createTreeWithEmptyWorkspace } from '@nx/devkit/testing';
-import { Linter } from '@nx/linter';
-import { backwardCompatibleVersions } from '../../utils/backward-compatible-versions';
+import { Linter } from '@nx/eslint';
 import { createApp } from '../../utils/nx-devkit/testing';
 import { UnitTestRunner } from '../../utils/test-runners';
 import {
+  angularDevkitVersion,
+  angularVersion,
   autoprefixerVersion,
   postcssVersion,
   tailwindVersion,
@@ -34,20 +37,26 @@ describe('lib', () => {
 
   async function runLibraryGeneratorWithOpts(opts: Partial<Schema> = {}) {
     await generateTestLibrary(tree, {
-      name: 'myLib',
+      name: 'my-lib',
       publishable: false,
       buildable: false,
       linter: Linter.EsLint,
-      skipFormat: false,
+      skipFormat: true,
       unitTestRunner: UnitTestRunner.Jest,
       simpleName: false,
       strict: true,
+      standalone: false,
       ...opts,
     });
   }
 
   beforeEach(() => {
     tree = createTreeWithEmptyWorkspace({ layout: 'apps-libs' });
+
+    projectGraph = {
+      dependencies: {},
+      nodes: {},
+    };
   });
 
   it('should run the library generator without erroring if the directory has a trailing slash', async () => {
@@ -55,6 +64,52 @@ describe('lib', () => {
     await expect(
       runLibraryGeneratorWithOpts({ directory: 'mylib/shared/' })
     ).resolves.not.toThrow();
+  });
+
+  it('should add angular dependencies', async () => {
+    // ACT
+    await runLibraryGeneratorWithOpts();
+
+    // ASSERT
+    const { dependencies, devDependencies } = readJson(tree, 'package.json');
+
+    expect(dependencies['@angular/animations']).toBe(angularVersion);
+    expect(dependencies['@angular/common']).toBe(angularVersion);
+    expect(dependencies['@angular/compiler']).toBe(angularVersion);
+    expect(dependencies['@angular/core']).toBe(angularVersion);
+    expect(dependencies['@angular/platform-browser']).toBe(angularVersion);
+    expect(dependencies['@angular/platform-browser-dynamic']).toBe(
+      angularVersion
+    );
+    expect(dependencies['@angular/router']).toBe(angularVersion);
+    expect(dependencies['rxjs']).toBeDefined();
+    expect(dependencies['tslib']).toBeDefined();
+    expect(dependencies['zone.js']).toBeDefined();
+    expect(devDependencies['@angular/cli']).toBe(angularDevkitVersion);
+    expect(devDependencies['@angular/compiler-cli']).toBe(angularVersion);
+    expect(devDependencies['@angular/language-service']).toBe(angularVersion);
+    expect(devDependencies['@angular-devkit/build-angular']).toBe(
+      angularDevkitVersion
+    );
+
+    // codelyzer should no longer be there by default
+    expect(devDependencies['codelyzer']).toBeUndefined();
+  });
+
+  it('should not touch the package.json when run with `--skipPackageJson`', async () => {
+    let initialPackageJson;
+    updateJson(tree, 'package.json', (json) => {
+      json.dependencies = {};
+      json.devDependencies = {};
+      initialPackageJson = json;
+
+      return json;
+    });
+
+    await runLibraryGeneratorWithOpts({ skipPackageJson: true });
+
+    const packageJson = readJson(tree, 'package.json');
+    expect(packageJson).toEqual(initialPackageJson);
   });
 
   describe('not nested', () => {
@@ -94,8 +149,7 @@ describe('lib', () => {
       const packageJson = readJson(tree, '/package.json');
       expect(packageJson.devDependencies['ng-packagr']).toBeUndefined();
       expect(packageJson.devDependencies['postcss']).toBeUndefined();
-      expect(packageJson.devDependencies['postcss-import']).toBeUndefined();
-      expect(packageJson.devDependencies['postcss-preset-env']).toBeUndefined();
+      expect(packageJson.devDependencies['autoprefixer']).toBeUndefined();
       expect(packageJson.devDependencies['postcss-url']).toBeUndefined();
     });
 
@@ -110,8 +164,7 @@ describe('lib', () => {
       const packageJson = readJson(tree, '/package.json');
       expect(packageJson.devDependencies['ng-packagr']).toBeDefined();
       expect(packageJson.devDependencies['postcss']).toBeDefined();
-      expect(packageJson.devDependencies['postcss-import']).toBeDefined();
-      expect(packageJson.devDependencies['postcss-preset-env']).toBeDefined();
+      expect(packageJson.devDependencies['autoprefixer']).toBeDefined();
       expect(packageJson.devDependencies['postcss-url']).toBeDefined();
     });
 
@@ -123,9 +176,11 @@ describe('lib', () => {
       const packageJson = readJson(tree, '/package.json');
       expect(packageJson.devDependencies['ng-packagr']).toBeDefined();
       expect(packageJson.devDependencies['postcss']).toBeDefined();
-      expect(packageJson.devDependencies['postcss-import']).toBeDefined();
-      expect(packageJson.devDependencies['postcss-preset-env']).toBeDefined();
+      expect(packageJson.devDependencies['autoprefixer']).toBeDefined();
       expect(packageJson.devDependencies['postcss-url']).toBeDefined();
+
+      const libPackageJson = readJson(tree, 'my-lib/package.json');
+      expect(libPackageJson.dependencies?.['tslib']).toBeFalsy();
     });
 
     it('should create project configuration', async () => {
@@ -139,6 +194,7 @@ describe('lib', () => {
       const json = readProjectConfiguration(tree, 'my-lib');
       expect(json.root).toEqual('my-lib');
       expect(json.targets.build).toBeDefined();
+      expect(json.targets.test).toBeDefined();
     });
 
     it('should not generate a module file and index.ts should be empty', async () => {
@@ -151,7 +207,10 @@ describe('lib', () => {
       const moduleFileExists = tree.exists('my-lib/src/lib/my-lib.module.ts');
       expect(moduleFileExists).toBeFalsy();
       const indexApi = tree.read('my-lib/src/index.ts', 'utf-8');
-      expect(indexApi).toMatchInlineSnapshot(`""`);
+      expect(indexApi).toMatchInlineSnapshot(`
+        "
+        "
+      `);
     });
 
     it('should remove "build" target from project.json when a library is not publishable', async () => {
@@ -251,7 +310,6 @@ describe('lib', () => {
           noImplicitReturns: true,
           strict: true,
           target: 'es2022',
-          useDefineForClassFields: false,
         },
         files: [],
         include: [],
@@ -415,8 +473,8 @@ describe('lib', () => {
         directory: 'my-dir/my-lib',
       });
       await runLibraryGeneratorWithOpts({
-        name: 'myLib2',
-        directory: 'myDir/my-lib2',
+        name: 'my-lib2',
+        directory: 'my-dir/my-lib2',
         tags: 'one,two',
       });
 
@@ -440,8 +498,8 @@ describe('lib', () => {
         directory: 'my-dir/my-lib',
       });
       await runLibraryGeneratorWithOpts({
-        name: 'myLib2',
-        directory: 'myDir/myLib2',
+        name: 'my-lib2',
+        directory: 'my-dir/my-lib2',
         simpleName: true,
       });
 
@@ -488,7 +546,7 @@ describe('lib', () => {
     it('should update ng-package.json', async () => {
       // ACT
       await runLibraryGeneratorWithOpts({
-        directory: 'myDir/myLib',
+        directory: 'my-dir/my-lib',
         publishable: true,
         importPath: '@myorg/lib',
       });
@@ -500,7 +558,7 @@ describe('lib', () => {
 
     it('should generate project configuration', async () => {
       // ACT
-      await runLibraryGeneratorWithOpts({ directory: 'myDir/myLib' });
+      await runLibraryGeneratorWithOpts({ directory: 'my-dir/my-lib' });
 
       // ASSERT
       expect(readProjectConfiguration(tree, 'my-lib').root).toEqual(
@@ -510,7 +568,7 @@ describe('lib', () => {
 
     it('should update tsconfig.json', async () => {
       // ACT
-      await runLibraryGeneratorWithOpts({ directory: 'myDir/myLib' });
+      await runLibraryGeneratorWithOpts({ directory: 'my-dir/my-lib' });
 
       // ASSERT
       const tsconfigJson = readJson(tree, '/tsconfig.base.json');
@@ -528,7 +586,7 @@ describe('lib', () => {
       });
 
       // ACT
-      await runLibraryGeneratorWithOpts({ directory: 'myDir/myLib' });
+      await runLibraryGeneratorWithOpts({ directory: 'my-dir/my-lib' });
 
       // ASSERT
       const tsconfigJson = readJson(tree, '/tsconfig.base.json');
@@ -558,7 +616,7 @@ describe('lib', () => {
     });
 
     it('should have root relative routes', async () => {
-      await runLibraryGeneratorWithOpts({ directory: 'myDir/myLib' });
+      await runLibraryGeneratorWithOpts({ directory: 'my-dir/my-lib' });
       const projectConfig = readProjectConfiguration(tree, 'my-lib');
       expect(projectConfig.root).toEqual('my-dir/my-lib');
     });
@@ -570,7 +628,7 @@ describe('lib', () => {
         expect(lookupFn(content)).toEqual(expectedValue);
       };
       await runLibraryGeneratorWithOpts({
-        directory: 'myDir/myLib',
+        directory: 'my-dir/my-lib',
         simpleName: true,
         publishable: true,
         importPath: '@myorg/lib',
@@ -594,16 +652,17 @@ describe('lib', () => {
       expect(tree.read('my-dir/my-lib/.eslintrc.json', 'utf-8'))
         .toMatchInlineSnapshot(`
         "{
-          "extends": ["../../.eslintrc.json"],
-          "ignorePatterns": ["!**/*"],
+          "extends": [
+            "../../.eslintrc.json"
+          ],
+          "ignorePatterns": [
+            "!**/*"
+          ],
           "overrides": [
             {
-              "files": ["*.json"],
-              "parser": "jsonc-eslint-parser",
-              "rules": {}
-            },
-            {
-              "files": ["*.ts"],
+              "files": [
+                "*.ts"
+              ],
               "extends": [
                 "plugin:@nx/angular",
                 "plugin:@angular-eslint/template/process-inline-templates"
@@ -613,7 +672,7 @@ describe('lib', () => {
                   "error",
                   {
                     "type": "attribute",
-                    "prefix": "proj",
+                    "prefix": "lib",
                     "style": "camelCase"
                   }
                 ],
@@ -621,16 +680,29 @@ describe('lib', () => {
                   "error",
                   {
                     "type": "element",
-                    "prefix": "proj",
+                    "prefix": "lib",
                     "style": "kebab-case"
                   }
                 ]
               }
             },
             {
-              "files": ["*.html"],
-              "extends": ["plugin:@nx/angular-template"],
+              "files": [
+                "*.html"
+              ],
+              "extends": [
+                "plugin:@nx/angular-template"
+              ],
               "rules": {}
+            },
+            {
+              "files": [
+                "*.json"
+              ],
+              "parser": "jsonc-eslint-parser",
+              "rules": {
+                "@nx/dependency-checks": "error"
+              }
             }
           ]
         }
@@ -680,14 +752,14 @@ describe('lib', () => {
       it('should add RouterModule.forChild', async () => {
         // ACT
         await runLibraryGeneratorWithOpts({
-          directory: 'myDir/myLib',
+          directory: 'my-dir/my-lib',
           routing: true,
           lazy: true,
         });
 
         await runLibraryGeneratorWithOpts({
-          name: 'myLib2',
-          directory: 'myDir/myLib2',
+          name: 'my-lib2',
+          directory: 'my-dir/my-lib2',
           routing: true,
           lazy: true,
           simpleName: true,
@@ -715,10 +787,11 @@ describe('lib', () => {
 
         // ACT
         await runLibraryGeneratorWithOpts({
-          directory: 'myDir/myLib',
+          directory: 'my-dir/my-lib',
           routing: true,
           lazy: true,
           parent: 'myapp/src/app/app.module.ts',
+          skipFormat: false,
         });
 
         const moduleContents = tree
@@ -729,12 +802,13 @@ describe('lib', () => {
         );
 
         await runLibraryGeneratorWithOpts({
-          name: 'myLib2',
-          directory: 'myDir/myLib2',
+          name: 'my-lib2',
+          directory: 'my-dir/my-lib2',
           routing: true,
           lazy: true,
           simpleName: true,
           parent: 'myapp/src/app/app.module.ts',
+          skipFormat: false,
         });
 
         const moduleContents2 = tree
@@ -745,12 +819,13 @@ describe('lib', () => {
         );
 
         await runLibraryGeneratorWithOpts({
-          name: 'myLib3',
-          directory: 'myDir/myLib3',
+          name: 'my-lib3',
+          directory: 'my-dir/my-lib3',
           routing: true,
           lazy: true,
           simpleName: true,
           parent: 'myapp/src/app/app.module.ts',
+          skipFormat: false,
         });
 
         const moduleContents3 = tree
@@ -837,7 +912,7 @@ describe('lib', () => {
 
         // ACT
         await runLibraryGeneratorWithOpts({
-          directory: 'myDir/myLib',
+          directory: 'my-dir/my-lib',
           routing: true,
           lazy: true,
           parent: 'myapp/src/app/app.module.ts',
@@ -856,13 +931,13 @@ describe('lib', () => {
       it('should add RouterModule and define an array of routes', async () => {
         // ACT
         await runLibraryGeneratorWithOpts({
-          directory: 'myDir/myLib',
+          directory: 'my-dir/my-lib',
           routing: true,
         });
 
         await runLibraryGeneratorWithOpts({
-          name: 'myLib2',
-          directory: 'myDir/myLib2',
+          name: 'my-lib2',
+          directory: 'my-dir/my-lib2',
           simpleName: true,
           routing: true,
         });
@@ -894,8 +969,8 @@ describe('lib', () => {
 
         // ACT
         await runLibraryGeneratorWithOpts({
-          name: 'myLib',
-          directory: 'myDir/myLib',
+          name: 'my-lib',
+          directory: 'my-dir/my-lib',
           routing: true,
           parent: 'myapp/src/app/app.module.ts',
         });
@@ -905,8 +980,8 @@ describe('lib', () => {
           .toString();
 
         await runLibraryGeneratorWithOpts({
-          name: 'myLib2',
-          directory: 'myDir/myLib2',
+          name: 'my-lib2',
+          directory: 'my-dir/my-lib2',
           simpleName: true,
           routing: true,
           parent: 'myapp/src/app/app.module.ts',
@@ -917,8 +992,8 @@ describe('lib', () => {
           .toString();
 
         await runLibraryGeneratorWithOpts({
-          name: 'myLib3',
-          directory: 'myDir/myLib3',
+          name: 'my-lib3',
+          directory: 'my-dir/my-lib3',
           routing: true,
           parent: 'myapp/src/app/app.module.ts',
           simpleName: true,
@@ -981,8 +1056,8 @@ describe('lib', () => {
 
         // ACT
         await runLibraryGeneratorWithOpts({
-          name: 'myLib',
-          directory: 'myDir/myLib',
+          name: 'my-lib',
+          directory: 'my-dir/my-lib',
           routing: true,
           parent: 'myapp/src/app/app.module.ts',
         });
@@ -1021,7 +1096,7 @@ describe('lib', () => {
     it('should update the package.json & tsconfig with the given import path', async () => {
       // ACT
       await runLibraryGeneratorWithOpts({
-        directory: 'myDir/myLib',
+        directory: 'my-dir/my-lib',
         publishable: true,
         importPath: '@myorg/lib',
       });
@@ -1046,7 +1121,7 @@ describe('lib', () => {
       // ACT & ASSERT
       await expect(
         runLibraryGeneratorWithOpts({
-          name: 'myLib2',
+          name: 'my-lib2',
           publishable: true,
           importPath: '@myorg/lib',
         })
@@ -1118,29 +1193,6 @@ describe('lib', () => {
 
   describe('--linter', () => {
     describe('eslint', () => {
-      it('should add a lint target', async () => {
-        // ACT
-        await runLibraryGeneratorWithOpts({ linter: Linter.EsLint });
-
-        // ASSERT
-        expect(tree.exists('my-lib/tslint.json')).toBe(false);
-        expect(readProjectConfiguration(tree, 'my-lib').targets['lint'])
-          .toMatchInlineSnapshot(`
-          {
-            "executor": "@nx/linter:eslint",
-            "options": {
-              "lintFilePatterns": [
-                "my-lib/**/*.ts",
-                "my-lib/**/*.html",
-              ],
-            },
-            "outputs": [
-              "{options.outputFile}",
-            ],
-          }
-        `);
-      });
-
       it('should add valid eslint JSON configuration which extends from Nx presets', async () => {
         // ACT
         await runLibraryGeneratorWithOpts({ linter: Linter.EsLint });
@@ -1158,13 +1210,6 @@ describe('lib', () => {
             ],
             "overrides": [
               {
-                "files": [
-                  "*.json",
-                ],
-                "parser": "jsonc-eslint-parser",
-                "rules": {},
-              },
-              {
                 "extends": [
                   "plugin:@nx/angular",
                   "plugin:@angular-eslint/template/process-inline-templates",
@@ -1176,7 +1221,7 @@ describe('lib', () => {
                   "@angular-eslint/component-selector": [
                     "error",
                     {
-                      "prefix": "proj",
+                      "prefix": "lib",
                       "style": "kebab-case",
                       "type": "element",
                     },
@@ -1184,7 +1229,7 @@ describe('lib', () => {
                   "@angular-eslint/directive-selector": [
                     "error",
                     {
-                      "prefix": "proj",
+                      "prefix": "lib",
                       "style": "camelCase",
                       "type": "attribute",
                     },
@@ -1199,6 +1244,75 @@ describe('lib', () => {
                   "*.html",
                 ],
                 "rules": {},
+              },
+            ],
+          }
+        `);
+      });
+
+      it('should add dependency checks to buildable libs', async () => {
+        // ACT
+        await runLibraryGeneratorWithOpts({
+          linter: Linter.EsLint,
+          buildable: true,
+        });
+
+        // ASSERT
+
+        const eslintConfig = readJson(tree, 'my-lib/.eslintrc.json');
+        expect(eslintConfig).toMatchInlineSnapshot(`
+          {
+            "extends": [
+              "../.eslintrc.json",
+            ],
+            "ignorePatterns": [
+              "!**/*",
+            ],
+            "overrides": [
+              {
+                "extends": [
+                  "plugin:@nx/angular",
+                  "plugin:@angular-eslint/template/process-inline-templates",
+                ],
+                "files": [
+                  "*.ts",
+                ],
+                "rules": {
+                  "@angular-eslint/component-selector": [
+                    "error",
+                    {
+                      "prefix": "lib",
+                      "style": "kebab-case",
+                      "type": "element",
+                    },
+                  ],
+                  "@angular-eslint/directive-selector": [
+                    "error",
+                    {
+                      "prefix": "lib",
+                      "style": "camelCase",
+                      "type": "attribute",
+                    },
+                  ],
+                },
+              },
+              {
+                "extends": [
+                  "plugin:@nx/angular-template",
+                ],
+                "files": [
+                  "*.html",
+                ],
+                "rules": {},
+              },
+              {
+                "files": [
+                  "*.json",
+                ],
+                "parser": "jsonc-eslint-parser",
+                "rules": {
+                  "@nx/dependency-checks": "error",
+                },
               },
             ],
           }
@@ -1423,6 +1537,7 @@ describe('lib', () => {
       await generateTestApplication(tree, {
         name: 'app1',
         routing: true,
+        skipFormat: true,
       });
 
       // ACT
@@ -1447,6 +1562,7 @@ describe('lib', () => {
       await generateTestApplication(tree, {
         name: 'app1',
         routing: true,
+        skipFormat: true,
       });
 
       // ACT
@@ -1473,6 +1589,7 @@ describe('lib', () => {
         name: 'app1',
         routing: true,
         standalone: true,
+        skipFormat: true,
       });
 
       // ACT
@@ -1488,7 +1605,8 @@ describe('lib', () => {
         "import { Route } from '@angular/router';
         import { myLibRoutes } from '@proj/my-lib';
 
-        export const appRoutes: Route[] = [{ path: 'my-lib', children: myLibRoutes }];
+        export const appRoutes: Route[] = [
+            { path: 'my-lib', children: myLibRoutes },];
         "
       `);
     });
@@ -1499,6 +1617,7 @@ describe('lib', () => {
         name: 'app1',
         routing: true,
         standalone: true,
+        skipFormat: true,
       });
 
       // ACT
@@ -1515,11 +1634,7 @@ describe('lib', () => {
         "import { Route } from '@angular/router';
 
         export const appRoutes: Route[] = [
-          {
-            path: 'my-lib',
-            loadChildren: () => import('@proj/my-lib').then((m) => m.myLibRoutes),
-          },
-        ];
+            { path: 'my-lib', loadChildren: () => import('@proj/my-lib').then(m => m.myLibRoutes) },];
         "
       `);
     });
@@ -1616,124 +1731,6 @@ describe('lib', () => {
     });
   });
 
-  describe('--angular-14', () => {
-    beforeEach(() => {
-      tree = createTreeWithEmptyWorkspace({ layout: 'apps-libs' });
-      updateJson(tree, 'package.json', (json) => ({
-        ...json,
-        dependencies: {
-          ...json.dependencies,
-          '@angular/core': '14.1.0',
-        },
-      }));
-    });
-
-    it('should create a local tsconfig.json', async () => {
-      // ACT
-      await runLibraryGeneratorWithOpts();
-
-      // ASSERT
-      const tsconfigJson = readJson(tree, 'my-lib/tsconfig.json');
-      expect(tsconfigJson).toEqual({
-        extends: '../tsconfig.base.json',
-        angularCompilerOptions: {
-          enableI18nLegacyMessageIdFormat: false,
-          strictInjectionParameters: true,
-          strictInputAccessModifiers: true,
-          strictTemplates: true,
-        },
-        compilerOptions: {
-          forceConsistentCasingInFileNames: true,
-          noFallthroughCasesInSwitch: true,
-          noPropertyAccessFromIndexSignature: true,
-          noImplicitOverride: true,
-          noImplicitReturns: true,
-          strict: true,
-          target: 'es2020',
-          useDefineForClassFields: false,
-        },
-        files: [],
-        include: [],
-        references: [
-          {
-            path: './tsconfig.lib.json',
-          },
-          {
-            path: './tsconfig.spec.json',
-          },
-        ],
-      });
-    });
-
-    it('should create a local package.json', async () => {
-      // ACT
-      await runLibraryGeneratorWithOpts({
-        publishable: true,
-        importPath: '@myorg/lib',
-      });
-
-      // ASSERT
-      const tsconfigJson = readJson(tree, 'my-lib/package.json');
-      expect(tsconfigJson).toMatchInlineSnapshot(`
-        {
-          "dependencies": {
-            "tslib": "^2.3.0",
-          },
-          "name": "@myorg/lib",
-          "peerDependencies": {
-            "@angular/common": "^14.1.0",
-            "@angular/core": "^14.1.0",
-          },
-          "sideEffects": false,
-          "version": "0.0.1",
-        }
-      `);
-    });
-
-    it('should generate a library with a standalone component as entry point with angular 14.1.0', async () => {
-      await runLibraryGeneratorWithOpts({ standalone: true });
-
-      expect(tree.read('my-lib/src/index.ts', 'utf-8')).toMatchSnapshot();
-      expect(
-        tree.read('my-lib/src/lib/my-lib/my-lib.component.ts', 'utf-8')
-      ).toMatchSnapshot();
-      expect(
-        tree.read('my-lib/src/lib/my-lib/my-lib.component.spec.ts', 'utf-8')
-      ).toMatchSnapshot();
-    });
-
-    it('should throw an error when trying to generate a library with a standalone component as entry point when angular version is < 14.1.0', async () => {
-      updateJson(tree, 'package.json', (json) => ({
-        ...json,
-        dependencies: {
-          ...json.dependencies,
-          '@angular/core': '14.0.0',
-        },
-      }));
-
-      await expect(
-        runLibraryGeneratorWithOpts({ standalone: true })
-      ).rejects.toThrow(
-        `The \"--standalone\" option is not supported in Angular versions < 14.1.0.`
-      );
-    });
-
-    it('should update package.json with correct versions when buildable', async () => {
-      // ACT
-      await runLibraryGeneratorWithOpts({ buildable: true });
-
-      // ASSERT
-      const packageJson = readJson(tree, '/package.json');
-      expect(packageJson.devDependencies['ng-packagr']).toEqual(
-        backwardCompatibleVersions.angularV14.ngPackagrVersion
-      );
-      expect(packageJson.devDependencies['postcss']).toBeDefined();
-      expect(packageJson.devDependencies['postcss-import']).toBeDefined();
-      expect(packageJson.devDependencies['postcss-preset-env']).toBeDefined();
-      expect(packageJson.devDependencies['postcss-url']).toBeDefined();
-    });
-  });
-
   describe('--project-name-and-root-format=derived', () => {
     it('should generate correctly when no directory is provided', async () => {
       await runLibraryGeneratorWithOpts({
@@ -1772,6 +1769,27 @@ describe('lib', () => {
       expect(
         tree.exists('libs/my-dir/my-lib/src/lib/my-dir-my-lib.module.ts')
       ).toBeTruthy();
+    });
+  });
+
+  describe('angular compat support', () => {
+    beforeEach(() => {
+      updateJson(tree, 'package.json', (json) => ({
+        ...json,
+        dependencies: {
+          ...json.dependencies,
+          '@angular/core': '~17.2.0',
+        },
+      }));
+    });
+
+    it('should disable modern class fields behavior', async () => {
+      await runLibraryGeneratorWithOpts();
+
+      expect(
+        readJson(tree, 'my-lib/tsconfig.json').compilerOptions
+          .useDefineForClassFields
+      ).toBe(false);
     });
   });
 });

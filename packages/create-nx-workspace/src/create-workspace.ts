@@ -1,12 +1,12 @@
 import { CreateWorkspaceOptions } from './create-workspace-options';
 import { output } from './utils/output';
-import { setupNxCloud } from './utils/nx/nx-cloud';
+import { getOnboardingInfo, readNxCloudToken } from './utils/nx/nx-cloud';
 import { createSandbox } from './create-sandbox';
 import { createEmptyWorkspace } from './create-empty-workspace';
 import { createPreset } from './create-preset';
 import { setupCI } from './utils/ci/setup-ci';
 import { initializeGitRepo } from './utils/git/git';
-import { getThirdPartyPreset } from './utils/preset/get-third-party-preset';
+import { getPackageNameFromThirdPartyPreset } from './utils/preset/get-third-party-preset';
 import { mapErrorToBodyLines } from './utils/error-utils';
 
 export async function createWorkspace<T extends CreateWorkspaceOptions>(
@@ -17,11 +17,11 @@ export async function createWorkspace<T extends CreateWorkspaceOptions>(
     packageManager,
     name,
     nxCloud,
-    ci = '',
     skipGit = false,
     defaultBase = 'main',
     commit,
     cliName,
+    useGitHub,
   } = options;
 
   if (cliName) {
@@ -30,7 +30,7 @@ export async function createWorkspace<T extends CreateWorkspaceOptions>(
 
   const tmpDir = await createSandbox(packageManager);
 
-  // nx new requires preset currently. We should probably make it optional.
+  // nx new requires a preset currently. We should probably make it optional.
   const directory = await createEmptyWorkspace<T>(
     tmpDir,
     name,
@@ -39,28 +39,40 @@ export async function createWorkspace<T extends CreateWorkspaceOptions>(
   );
 
   // If the preset is a third-party preset, we need to call createPreset to install it
-  // For first-party presets, it will created by createEmptyWorkspace instead.
+  // For first-party presets, it will be created by createEmptyWorkspace instead.
   // In createEmptyWorkspace, it will call `nx new` -> `@nx/workspace newGenerator` -> `@nx/workspace generatePreset`.
-  const thirdPartyPreset = await getThirdPartyPreset(preset);
-  if (thirdPartyPreset) {
-    await createPreset(thirdPartyPreset, options, packageManager, directory);
-  }
-
-  let nxCloudInstallRes;
-  if (nxCloud) {
-    nxCloudInstallRes = await setupNxCloud(directory, packageManager);
-  }
-  if (ci) {
-    await setupCI(
-      directory,
-      ci,
+  const thirdPartyPackageName = getPackageNameFromThirdPartyPreset(preset);
+  if (thirdPartyPackageName) {
+    await createPreset(
+      thirdPartyPackageName,
+      options,
       packageManager,
-      nxCloud && nxCloudInstallRes?.code === 0
+      directory
     );
   }
-  if (!skipGit && commit) {
+
+  let connectUrl: string | undefined;
+  let nxCloudInfo: string | undefined;
+  if (nxCloud !== 'skip') {
+    const token = readNxCloudToken(directory) as string;
+
+    if (nxCloud !== 'yes') {
+      await setupCI(directory, nxCloud, packageManager);
+    }
+
+    const { connectCloudUrl, output } = await getOnboardingInfo(
+      nxCloud,
+      token,
+      directory,
+      useGitHub
+    );
+    connectUrl = connectCloudUrl;
+    nxCloudInfo = output;
+  }
+
+  if (!skipGit) {
     try {
-      await initializeGitRepo(directory, { defaultBase, commit });
+      await initializeGitRepo(directory, { defaultBase, commit, connectUrl });
     } catch (e) {
       if (e instanceof Error) {
         output.error({
@@ -74,7 +86,13 @@ export async function createWorkspace<T extends CreateWorkspaceOptions>(
   }
 
   return {
-    nxCloudInfo: nxCloudInstallRes?.stdout,
+    nxCloudInfo,
     directory,
   };
+}
+
+export function extractConnectUrl(text: string): string | null {
+  const urlPattern = /(https:\/\/[^\s]+\/connect\/[^\s]+)/g;
+  const match = text.match(urlPattern);
+  return match ? match[0] : null;
 }

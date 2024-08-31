@@ -1,95 +1,262 @@
-import {
-  ChevronRightIcon,
-  ClipboardDocumentCheckIcon,
-  ClipboardDocumentIcon,
-} from '@heroicons/react/24/outline';
-import { ButtonLink } from '@nx/nx-dev/ui-common';
+'use client';
+import { ButtonLink, SectionHeading, Strong } from '@nx/nx-dev/ui-common';
+import { ShaderGradient, ShaderGradientCanvas } from 'shadergradient';
+import { BlurFade } from '@nx/nx-dev/ui-animations';
+import { Theme, useTheme } from '@nx/nx-dev/ui-theme';
+import { useState } from 'react';
 import Link from 'next/link';
-import React, { useEffect, useState } from 'react';
-// @ts-ignore
-import { CopyToClipboard } from 'react-copy-to-clipboard';
+import { useIsomorphicLayoutEffect } from '@nx/nx-dev/ui-primitives';
+import { MonorepoWorldIcon } from '@nx/nx-dev/ui-icons';
+import { motion, MotionConfig } from 'framer-motion';
 
 export function Hero(): JSX.Element {
-  const [copied, setCopied] = useState(false);
-  useEffect(() => {
-    let t: NodeJS.Timeout;
-    if (copied) {
-      t = setTimeout(() => {
-        setCopied(false);
-      }, 3000);
-    }
-    return () => {
-      t && clearTimeout(t);
-    };
-  }, [copied]);
-
   return (
-    <header
-      className="bg-contain bg-fixed bg-clip-border bg-center bg-no-repeat bg-origin-border lg:bg-local"
-      style={{
-        backgroundImage: 'url(/images/background/waves-background.svg)',
-      }}
-    >
-      <div className="mx-auto max-w-7xl py-12 px-4 sm:px-6 lg:py-16 lg:px-8">
-        <div className="flex flex-col items-center justify-center">
-          <div className="flex w-full flex-col">
-            <h1
-              className="mb-12 text-5xl font-extrabold leading-none tracking-tight text-black drop-shadow dark:text-white sm:mt-6 sm:text-7xl lg:font-black lg:leading-tight"
-              data-cy="primary-heading"
+    <div className="mx-auto h-screen w-full max-w-7xl px-6 lg:px-8">
+      <div className="hidden lg:block">
+        <ShaderGradientElement />
+      </div>
+      <div className="absolute left-0 right-0 -z-10 mx-auto flex h-full max-h-screen w-full flex-row justify-between border-b border-dashed border-slate-200/30 px-6 lg:h-full lg:max-w-7xl lg:px-0 dark:border-slate-800/40">
+        <div className="h-full w-full border-x border-dashed border-slate-200/20 dark:border-slate-800/40" />
+        <div className="h-full w-full border-x border-dashed border-slate-200/20 dark:border-slate-800/40" />
+        <div className="h-full w-full border-x border-dashed border-slate-200/20 dark:border-slate-800/40" />
+        <div className="h-full w-full border-x border-dashed border-slate-200/20 dark:border-slate-800/40" />
+        <div className="h-full w-full border-x border-dashed border-slate-200/20 dark:border-slate-800/40" />
+        <div className="h-full w-full border-x border-dashed border-slate-200/20 dark:border-slate-800/40" />
+      </div>
+      <div className="z-20 mx-auto grid h-screen max-w-6xl grid-cols-1 place-items-center text-center">
+        <div className="container">
+          <SectionHeading as="h1" variant="display" data-cy="primary-heading">
+            <span className="rounded-lg bg-gradient-to-r from-cyan-500 to-blue-500 bg-clip-text text-transparent">
+              Smart
+            </span>{' '}
+            Monorepos
+            <br className="sm:hidden" />
+            <svg
+              viewBox="0 0 2 2"
+              fill="currentColor"
+              className="mx-6 hidden size-2 sm:inline-flex xl:size-3"
             >
-              <span className="block">
-                <span className="rounded-lg bg-gradient-to-r from-cyan-500 to-blue-500 bg-clip-text text-transparent">
-                  Smart
-                </span>
-                , Fast
-              </span>
-              <span className="block">Extensible</span>
-              <span className="rounded-lg bg-gradient-to-r from-pink-500 to-fuchsia-500 bg-clip-text text-transparent">
-                Build System
-              </span>
-            </h1>
-            <h2 className="mb-16 max-w-2xl py-3 text-2xl font-semibold drop-shadow dark:text-slate-100 sm:mb-11">
-              Next generation build system with first class monorepo support and
-              powerful integrations.
-            </h2>
-            <div className="flex flex-wrap space-y-4 sm:space-y-0 sm:space-x-4">
-              <ButtonLink
-                href="/getting-started/intro"
-                variant="primary"
-                size="large"
-                title="Start using Nx by creating a workspace"
-              >
-                Get started
-              </ButtonLink>
+              <circle cx={1} cy={1} r={1} />
+            </svg>
+            <span className="rounded-lg bg-gradient-to-r from-pink-500 to-fuchsia-500 bg-clip-text text-transparent">
+              Fast
+            </span>{' '}
+            CI
+          </SectionHeading>
+          <SectionHeading
+            as="p"
+            variant="subtitle"
+            className="mx-auto mt-6 max-w-4xl"
+          >
+            <Strong>Build system</Strong>, optimized for monorepos, with plugins
+            for popular frameworks and tools and{' '}
+            <Strong>advanced CI capabilities</Strong> including caching and
+            distribution.
+          </SectionHeading>
+          <div className="mt-10 flex flex-col items-center justify-center gap-6 sm:flex-row">
+            <ButtonLink
+              href="/getting-started/intro?utm_medium=website&utm_campaign=homepage_links&utm_content=cta_hero_get_started#try-nx-yourself"
+              title="Get started"
+              variant="primary"
+              size="default"
+            >
+              Get started
+            </ButtonLink>
 
-              <CopyToClipboard
-                text="npx create-nx-workspace@latest"
-                onCopy={() => {
-                  setCopied(true);
+            <ButtonLink
+              href="ci/intro/ci-with-nx?utm_medium=website&utm_campaign=homepage_links&utm_content=cta_hero_get_started&utm_source=nxdev"
+              title="Learn about Nx on CI"
+              variant="contrast"
+              size="default"
+            >
+              Learn about Nx on CI
+            </ButtonLink>
+            <ButtonLink
+              href="/contact?utm_medium=website&utm_campaign=homepage_links&utm_content=cta_hero_get_started"
+              title="Get started"
+              variant="secondary"
+              size="default"
+            >
+              Contact us
+            </ButtonLink>
+          </div>
+          <div className="mt-12 flex justify-center">
+            <MotionConfig reducedMotion="user">
+              <motion.div
+                initial={{
+                  y: 16,
+                  opacity: 0,
                 }}
+                whileInView={{
+                  y: 0,
+                  opacity: 1,
+                }}
+                viewport={{ once: true }}
+                transition={{
+                  ease: 'easeOut',
+                  duration: 0.225,
+                  delay: 1,
+                }}
+                className="pointer-events-auto relative mx-auto w-full max-w-lg overflow-hidden rounded-lg bg-slate-950 text-left text-white shadow-lg ring-1 ring-white ring-opacity-5 transition hover:bg-slate-800"
               >
-                <button
-                  title="Create an Nx workspace"
-                  className="group relative flex w-full items-center rounded-lg border border-slate-200 bg-white py-3 px-6 text-lg font-semibold leading-6 transition hover:bg-slate-100 focus:ring-2 focus:ring-offset-2 focus:ring-offset-white dark:border-slate-700 dark:bg-slate-800 dark:text-white dark:hover:bg-slate-700 sm:w-auto"
-                >
-                  <span className="absolute top-1 right-1 flex opacity-0 transition-opacity group-hover:opacity-100">
-                    {copied ? (
-                      <ClipboardDocumentCheckIcon className="h-4 w-4" />
-                    ) : (
-                      <ClipboardDocumentIcon className="h-4 w-4" />
-                    )}
-                  </span>
-                  <ChevronRightIcon
-                    aria-hidden="true"
-                    className="font-input-mono mr-2 h-5 w-5 text-blue-500 dark:text-sky-500"
-                  />
-                  npx create-nx-workspace
-                </button>
-              </CopyToClipboard>
-            </div>
+                <div className="p-4">
+                  <div className="flex items-start gap-6">
+                    <div className="-m-4 hidden flex-shrink-0 sm:block">
+                      <img
+                        src="/images/conferences/monorepoworld-vertical-banner.avif"
+                        alt="MonorepoWorld conference image"
+                        className="size-32"
+                      />
+                    </div>
+                    <div className="w-0 flex-1 pt-1">
+                      <p className="text-base font-semibold">
+                        <a
+                          href="https://monorepo.world/?utm_source=nxdev&utm_medium=website&utm_campaign=homepage_banner&utm_campaign=monorepoworld"
+                          title="Join us at Monorepo World"
+                          target="_blank"
+                        >
+                          <span className="absolute inset-0" />
+                          The Nx team will be at Monorepo World!
+                        </a>
+                      </p>
+                      <p className="mt-1 text-sm text-slate-300">
+                        The ultimate conference for{' '}
+                        <span className="text-[#DDFB24]">monorepos</span> and
+                        developer{' '}
+                        <span className="text-[#DDFB24]">tooling</span> on 0ct.
+                        7. 2024, Mountain View, CA.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </motion.div>
+            </MotionConfig>
           </div>
         </div>
       </div>
-    </header>
+    </div>
+  );
+}
+
+function ShaderGradientElement() {
+  const [theme] = useTheme();
+  const [displayTheme, setDisplayTheme] = useState<Theme>('system');
+  useIsomorphicLayoutEffect(() => {
+    const matchMedia: any = window.matchMedia('(prefers-color-scheme: dark)');
+
+    function handleChange(): void {
+      if (theme === 'system') {
+        setDisplayTheme(matchMedia.matches ? 'dark' : 'light');
+      } else {
+        setDisplayTheme(theme === 'dark' ? 'dark' : 'light');
+      }
+    }
+
+    handleChange();
+
+    // Use deprecated `addListener` and `removeListener` to support Safari < 14 (#135)
+    if (matchMedia.addListener) {
+      matchMedia.addListener(handleChange);
+    } else {
+      matchMedia.addEventListener('change', handleChange);
+    }
+
+    return () => {
+      if (matchMedia.removeListener) {
+        matchMedia.removeListener(handleChange);
+      } else {
+        matchMedia.removeEventListener('change', handleChange);
+      }
+    };
+  }, [theme]);
+
+  if (displayTheme === 'dark')
+    return (
+      <BlurFade
+        delay={1}
+        duration={1.8}
+        className="absolute left-0 -z-10 w-full"
+      >
+        <div className="h-screen w-full overflow-hidden">
+          <ShaderGradientCanvas
+            pointerEvents="none"
+            eventPrefix="client"
+            fov={45}
+            pixelDensity={1}
+            className="pointer-events-none"
+          >
+            <ShaderGradient
+              brightness={4}
+              cDistance={5}
+              color1="#251B36"
+              color2="#020617"
+              color3="#1F1C3A"
+              frameRate={10}
+              grain="off"
+              lightType="3d"
+              positionX={0}
+              positionY={1.8}
+              positionZ={0}
+              range="enabled"
+              rangeEnd={40}
+              rangeStart={0}
+              reflection={0.1}
+              rotationX={0}
+              rotationY={0}
+              rotationZ={-90}
+              shader="defaults"
+              type="waterPlane"
+              uDensity={1}
+              uFrequency={5.5}
+              uSpeed={0.1}
+              uStrength={3}
+              uTime={0.2}
+            />
+          </ShaderGradientCanvas>
+          <div className="absolute inset-x-0 bottom-0 h-96 bg-gradient-to-b from-transparent to-white dark:to-slate-950" />
+        </div>
+      </BlurFade>
+    );
+  return (
+    <BlurFade delay={1} duration={1.8} className="absolute left-0 -z-10 w-full">
+      <div className="h-screen w-full overflow-hidden">
+        <ShaderGradientCanvas
+          pointerEvents="none"
+          eventPrefix="client"
+          fov={45}
+          pixelDensity={1}
+          className="pointer-events-none"
+        >
+          <ShaderGradient
+            brightness={4}
+            cDistance={5}
+            color1="#F4F2FE"
+            color2="#F7F7FF"
+            color3="#FFFFFF"
+            frameRate={10}
+            grain="off"
+            lightType="3d"
+            positionX={0}
+            positionY={1.8}
+            positionZ={0}
+            range="enabled"
+            rangeEnd={40}
+            rangeStart={0}
+            reflection={0.1}
+            rotationX={0}
+            rotationY={0}
+            rotationZ={-90}
+            shader="defaults"
+            type="waterPlane"
+            uDensity={1}
+            uFrequency={5.5}
+            uSpeed={0.1}
+            uStrength={3}
+            uTime={0.2}
+          />
+        </ShaderGradientCanvas>
+        <div className="absolute inset-x-0 bottom-0 h-96 bg-gradient-to-b from-transparent to-white dark:to-slate-950" />
+      </div>
+    </BlurFade>
   );
 }

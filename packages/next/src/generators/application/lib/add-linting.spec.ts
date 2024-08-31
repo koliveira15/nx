@@ -6,7 +6,7 @@ import {
 } from '@nx/devkit';
 import { createTreeWithEmptyWorkspace } from '@nx/devkit/testing';
 import { addLinting } from './add-linting';
-import { Linter } from '@nx/linter';
+import { Linter } from '@nx/eslint';
 import { NormalizedSchema } from './normalize-options';
 
 describe('updateEslint', () => {
@@ -16,19 +16,20 @@ describe('updateEslint', () => {
   beforeEach(async () => {
     schema = {
       projectName: 'my-app',
-      appProjectRoot: 'apps/my-app',
+      appProjectRoot: 'my-app',
       linter: Linter.EsLint,
       unitTestRunner: 'jest',
       e2eProjectName: 'my-app-e2e',
-      e2eProjectRoot: 'apps/my-app-e2e',
-      outputPath: 'dist/apps/my-app',
+      e2eProjectRoot: 'my-app-e2e',
+      outputPath: 'dist/my-app',
       name: 'my-app',
       parsedTags: [],
       fileName: 'index',
       e2eTestRunner: 'cypress',
       styledModule: null,
+      projectNameAndRootFormat: 'as-provided',
     };
-    tree = createTreeWithEmptyWorkspace({ layout: 'apps-libs' });
+    tree = createTreeWithEmptyWorkspace();
     const project: ProjectConfiguration = {
       root: schema.appProjectRoot,
       sourceRoot: schema.appProjectRoot,
@@ -54,21 +55,13 @@ describe('updateEslint', () => {
           "plugin:@nx/react-typescript",
           "next",
           "next/core-web-vitals",
-          "../../.eslintrc.json",
+          "../.eslintrc.json",
         ],
         "ignorePatterns": [
           "!**/*",
           ".next/**/*",
         ],
         "overrides": [
-          {
-            "files": [
-              "*.*",
-            ],
-            "rules": {
-              "@next/next/no-html-link-for-pages": "off",
-            },
-          },
           {
             "files": [
               "*.ts",
@@ -79,7 +72,7 @@ describe('updateEslint', () => {
             "rules": {
               "@next/next/no-html-link-for-pages": [
                 "error",
-                "apps/my-app/pages",
+                "my-app/pages",
               ],
             },
           },
@@ -120,9 +113,10 @@ describe('updateEslint', () => {
 
     expect(tree.read(`${schema.appProjectRoot}/eslint.config.js`, 'utf-8'))
       .toMatchInlineSnapshot(`
-      "const FlatCompat = require("@eslint/eslintrc");
+      "const { FlatCompat } = require("@eslint/eslintrc");
       const js = require("@eslint/js");
-      const baseConfig = require("../../eslint.config.js");
+      const baseConfig = require("../eslint.config.js");
+
       const compat = new FlatCompat({
             baseDirectory: __dirname,
             recommendedConfig: js.configs.recommended,
@@ -130,50 +124,49 @@ describe('updateEslint', () => {
         
 
       module.exports = [
-      {
-          files: ["apps/my-app/**/*.*"],
-          rules: { "@next/next/no-html-link-for-pages": "off" }
-      },
+      ...compat.extends("plugin:@nx/react-typescript", "next", "next/core-web-vitals"),
           ...baseConfig,
           {
         "files": [
-          "apps/my-app/**/*.ts",
-          "apps/my-app/**/*.tsx",
-          "apps/my-app/**/*.js",
-          "apps/my-app/**/*.jsx"
+          "**/*.ts",
+          "**/*.tsx",
+          "**/*.js",
+          "**/*.jsx"
         ],
         "rules": {
           "@next/next/no-html-link-for-pages": [
             "error",
-            "apps/my-app/pages"
+            "my-app/pages"
           ]
         }
           },
           {
               files: [
-                  "apps/my-app/**/*.ts",
-                  "apps/my-app/**/*.tsx"
+                  "**/*.ts",
+                  "**/*.tsx"
               ],
               rules: {}
           },
           {
               files: [
-                  "apps/my-app/**/*.js",
-                  "apps/my-app/**/*.jsx"
+                  "**/*.js",
+                  "**/*.jsx"
               ],
               rules: {}
           },
-      ...compat.extends("plugin:@nx/react-typescript", "next", "next/core-web-vitals"),
       ...compat.config({ env: { jest: true } }).map(config => ({
           ...config,
           files: [
-              "apps/my-app/**/*.spec.ts",
-              "apps/my-app/**/*.spec.tsx",
-              "apps/my-app/**/*.spec.js",
-              "apps/my-app/**/*.spec.jsx"
-          ]
+              "**/*.spec.ts",
+              "**/*.spec.tsx",
+              "**/*.spec.js",
+              "**/*.spec.jsx"
+          ],
+          rules: {
+              ...config.rules
+          }
       })),
-      { ignores: ["apps/my-app/.next/**/*"] }
+      { ignores: [".next/**/*"] }
       ];
       "
     `);

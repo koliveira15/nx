@@ -50,6 +50,18 @@ describe('lib migrator', () => {
     jest.clearAllMocks();
   });
 
+  it('should not migrate project when validation fails', async () => {
+    // add project with no root
+    const project = addProject('lib1', {} as any);
+    const migrator = new LibMigrator(tree, {}, project);
+
+    await migrator.migrate();
+
+    expect(tree.exists('libs/lib1/project.json')).toBe(false);
+    const { projects } = readJson(tree, 'angular.json');
+    expect(projects.lib1).toBeDefined();
+  });
+
   describe('validation', () => {
     it('should fail validation when the project root is not specified', async () => {
       const project = addProject('lib1', {} as any);
@@ -710,7 +722,7 @@ describe('lib migrator', () => {
 
       const { targets } = readProjectConfiguration(tree, 'lib1');
       expect(targets.lint).toStrictEqual({
-        executor: '@nx/linter:eslint',
+        executor: '@nx/eslint:lint',
         options: {
           lintFilePatterns: ['libs/lib1/**/*.ts', 'libs/lib1/**/*.html'],
         },
@@ -739,7 +751,7 @@ describe('lib migrator', () => {
 
       const { targets } = readProjectConfiguration(tree, 'lib1');
       expect(targets.myCustomLintTarget).toStrictEqual({
-        executor: '@nx/linter:eslint',
+        executor: '@nx/eslint:lint',
         options: {
           lintFilePatterns: ['libs/lib1/**/*.ts', 'libs/lib1/**/*.html'],
         },
@@ -769,7 +781,7 @@ describe('lib migrator', () => {
 
       const { targets } = readProjectConfiguration(tree, 'lib1');
       expect(targets.lint).toStrictEqual({
-        executor: '@nx/linter:eslint',
+        executor: '@nx/eslint:lint',
         options: {
           eslintConfig: 'libs/lib1/.eslintrc.json',
           lintFilePatterns: ['libs/lib1/**/*.ts', 'libs/lib1/**/*.html'],
@@ -811,7 +823,7 @@ describe('lib migrator', () => {
 
       const { targets } = readProjectConfiguration(tree, 'lib1');
       expect(targets.lint).toStrictEqual({
-        executor: '@nx/linter:eslint',
+        executor: '@nx/eslint:lint',
         options: {
           eslintConfig: 'libs/lib1/.eslintrc.json',
           hasTypeAwareRules: true,
@@ -1274,14 +1286,12 @@ describe('lib migrator', () => {
 
       await migrator.migrate();
 
-      const { tasksRunnerOptions } = readNxJson(tree);
+      const { targetDefaults } = readNxJson(tree);
       expect(
-        tasksRunnerOptions.default.options.cacheableOperations
+        Object.keys(targetDefaults).filter((f) => targetDefaults[f].cache)
       ).toStrictEqual([
         'build',
         'lint',
-        'test',
-        'e2e',
         'myCustomBuild',
         'myCustomTest',
         'myCustomLint',
@@ -1304,10 +1314,10 @@ describe('lib migrator', () => {
 
       await migrator.migrate();
 
-      const { tasksRunnerOptions } = readNxJson(tree);
+      const { targetDefaults } = readNxJson(tree);
       expect(
-        tasksRunnerOptions.default.options.cacheableOperations
-      ).toStrictEqual(['build', 'lint', 'test', 'e2e', 'myCustomTest']);
+        Object.keys(targetDefaults).filter((f) => targetDefaults[f].cache)
+      ).toStrictEqual(['build', 'lint', 'myCustomTest']);
     });
   });
 });

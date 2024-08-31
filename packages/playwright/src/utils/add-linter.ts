@@ -6,8 +6,8 @@ import {
   runTasksInSerial,
   Tree,
 } from '@nx/devkit';
-import { Linter, lintProjectGenerator } from '@nx/linter';
-import { javaScriptOverride } from '@nx/linter/src/generators/init/global-eslint-config';
+import { Linter, LinterType, lintProjectGenerator } from '@nx/eslint';
+import { javaScriptOverride } from '@nx/eslint/src/generators/init/global-eslint-config';
 import { eslintPluginPlaywrightVersion } from './versions';
 import {
   addExtendsToLintConfig,
@@ -15,11 +15,11 @@ import {
   addPluginsToLintConfig,
   findEslintFile,
   isEslintConfigSupported,
-} from '@nx/linter/src/generators/utils/eslint-file';
+} from '@nx/eslint/src/generators/utils/eslint-file';
 
 export interface PlaywrightLinterOptions {
   project: string;
-  linter: Linter;
+  linter: Linter | LinterType;
   setParserOptionsProject: boolean;
   skipPackageJson: boolean;
   rootProject: boolean;
@@ -28,6 +28,7 @@ export interface PlaywrightLinterOptions {
    * Directory from the project root, where the playwright files will be located.
    **/
   directory: string;
+  addPlugin?: boolean;
 }
 
 export async function addLinterToPlaywrightProject(
@@ -49,12 +50,10 @@ export async function addLinterToPlaywrightProject(
         linter: options.linter,
         skipFormat: true,
         tsConfigPaths: [joinPathFragments(projectConfig.root, 'tsconfig.json')],
-        eslintFilePatterns: [
-          `${projectConfig.root}/**/*.${options.js ? 'js' : '{js,ts}'}`,
-        ],
         setParserOptionsProject: options.setParserOptionsProject,
         skipPackageJson: options.skipPackageJson,
         rootProject: options.rootProject,
+        addPlugin: options.addPlugin,
       })
     );
   }
@@ -73,7 +72,10 @@ export async function addLinterToPlaywrightProject(
       : () => {}
   );
 
-  if (isEslintConfigSupported(tree)) {
+  if (
+    isEslintConfigSupported(tree, projectConfig.root) ||
+    isEslintConfigSupported(tree)
+  ) {
     addExtendsToLintConfig(
       tree,
       projectConfig.root,

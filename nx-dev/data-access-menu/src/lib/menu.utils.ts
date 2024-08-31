@@ -1,5 +1,7 @@
 import { MenuItem, MenuSection } from '@nx/nx-dev/models-menu';
 
+const COLLAPSIBLE_SECTIONS = ['concepts', 'recipes'];
+
 export function getBasicNxSection(items: MenuItem[]): MenuSection {
   return {
     id: 'basic',
@@ -9,16 +11,19 @@ export function getBasicNxSection(items: MenuItem[]): MenuSection {
       .filter(
         (m) =>
           m.id === 'getting-started' ||
-          m.id === 'core-features' ||
+          m.id === 'features' ||
           m.id === 'concepts' ||
           m.id === 'recipes' ||
           m.id === 'showcase' ||
-          m.id === 'reference'
+          m.id === 'reference' ||
+          m.id === 'troubleshooting'
       )
       .map((m) => {
         return {
           ...m,
-          disableCollapsible: !m.id.endsWith('tutorial'),
+          disableCollapsible: !COLLAPSIBLE_SECTIONS.some((collapsibleSection) =>
+            m.id.endsWith(collapsibleSection)
+          ),
         };
       }),
   };
@@ -79,12 +84,19 @@ export function getBasicNxCloudSection(items: MenuItem[]): MenuSection {
     hideSectionHeader: true,
     itemList: items
       .filter(
-        (m) => m.id === 'intro' || m.id === 'set-up' || m.id === 'account'
+        (m) =>
+          m.id === 'intro' ||
+          m.id === 'features' ||
+          m.id === 'concepts' ||
+          m.id === 'recipes' ||
+          m.id === 'reference' ||
+          m.id === 'troubleshooting'
       )
       .map((m) => {
         return {
           ...m,
-          disableCollapsible: !m.id.endsWith('tutorial'),
+          disableCollapsible:
+            !m.id.endsWith('tutorial') && !m.id.endsWith('concepts'),
         };
       }),
   };
@@ -96,7 +108,7 @@ export function getDeepDiveNxCloudSection(items: MenuItem[]): MenuSection {
     name: 'Deep Dive',
     hideSectionHeader: false,
     itemList: items
-      .filter((m) => m.id === 'private-cloud' || m.id === 'reference')
+      .filter((m) => m.id === 'private-cloud')
       .map((m) => ({
         ...m,
         disableCollapsible: true,

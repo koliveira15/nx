@@ -10,21 +10,28 @@ import {
   tmpProjPath,
   uniq,
   updateFile,
-  updateProjectConfig,
-  setMaxWorkers,
+  updateJson,
+  promisifiedTreeKill,
 } from '@nx/e2e/utils';
 import { execSync } from 'child_process';
+import { join } from 'path';
 
 describe('Node Applications + webpack', () => {
-  beforeEach(() => newProject());
+  beforeAll(() =>
+    newProject({
+      packages: ['@nx/node'],
+    })
+  );
 
-  afterEach(() => cleanupProject());
+  afterAll(() => cleanupProject());
 
   it('should generate an app using webpack', async () => {
     const app = uniq('nodeapp');
 
-    runCLI(`generate @nx/node:app ${app} --bundler=webpack --no-interactive`);
-    await setMaxWorkers();
+    // This fails with Crystal enabled because `--optimization` is not a correct flag to pass to `webpack`.
+    runCLI(`generate @nx/node:app ${app} --bundler=webpack --no-interactive`, {
+      env: { NX_ADD_PLUGINS: 'false' },
+    });
 
     checkFilesExist(`apps/${app}/webpack.config.js`);
 
@@ -57,7 +64,7 @@ describe('Node Applications + webpack', () => {
     const lib = uniq('nodelib');
     runCLI(`generate @nx/js:lib ${lib} --bundler=esbuild --no-interactive`);
 
-    await updateProjectConfig(app, (config) => {
+    updateJson(join('apps', app, 'project.json'), (config) => {
       // Since we read from lib from dist, we should re-build it when lib changes.
       config.targets.build.options.buildLibsFromSource = false;
       config.targets.serve.options.runBuildTargetDependencies = true;
@@ -76,6 +83,11 @@ describe('Node Applications + webpack', () => {
       `serve ${app} --watch --runBuildTargetDependencies`,
       (output) => {
         return output.includes(`Hello`);
+      },
+      {
+        env: {
+          NX_DAEMON: 'true',
+        },
       }
     );
 
@@ -97,9 +109,9 @@ describe('Node Applications + webpack', () => {
           output.includes(`should rebuild lib`)
         );
       },
-      { timeout: 30_000, ms: 200 }
+      { timeout: 60_000, ms: 200 }
     );
 
-    serveProcess.kill();
+    await promisifiedTreeKill(serveProcess.pid, 'SIGKILL');
   }, 300_000);
 });

@@ -1,6 +1,6 @@
+import { relative } from 'path';
 import {
   addProjectConfiguration,
-  convertNxGenerator,
   ensurePackage,
   formatFiles,
   GeneratorCallback,
@@ -9,10 +9,12 @@ import {
   Tree,
   updateJson,
 } from '@nx/devkit';
-
-import { addTsConfigPath } from '@nx/js';
+import { getRelativeCwd } from '@nx/devkit/src/generators/artifact-name-and-directory-utils';
+import { logShowProjectCommand } from '@nx/devkit/src/utils/log-show-project-command';
+import { addTsConfigPath, initGenerator as jsInitGenerator } from '@nx/js';
 
 import { nxVersion } from '../../utils/versions';
+import { maybeJs } from '../../utils/maybe-js';
 import componentGenerator from '../component/component';
 import initGenerator from '../init/init';
 import { Schema } from './schema';
@@ -28,6 +30,7 @@ import { setDefaults } from './lib/set-defaults';
 
 export async function libraryGenerator(host: Tree, schema: Schema) {
   return await libraryGeneratorInternal(host, {
+    addPlugin: false,
     projectNameAndRootFormat: 'derived',
     ...schema,
   });
@@ -46,11 +49,15 @@ export async function libraryGeneratorInternal(host: Tree, schema: Schema) {
     options.style = 'none';
   }
 
+  const jsInitTask = await jsInitGenerator(host, {
+    ...schema,
+    skipFormat: true,
+  });
+  tasks.push(jsInitTask);
+
   const initTask = await initGenerator(host, {
     ...options,
-    e2eTestRunner: 'none',
     skipFormat: true,
-    skipHelperLibs: options.bundler === 'vite',
   });
   tasks.push(initTask);
 
@@ -69,9 +76,8 @@ export async function libraryGeneratorInternal(host: Tree, schema: Schema) {
 
   // Set up build target
   if (options.buildable && options.bundler === 'vite') {
-    const { viteConfigurationGenerator } = ensurePackage<
-      typeof import('@nx/vite')
-    >('@nx/vite', nxVersion);
+    const { viteConfigurationGenerator, createOrEditViteConfig } =
+      ensurePackage<typeof import('@nx/vite')>('@nx/vite', nxVersion);
     const viteTask = await viteConfigurationGenerator(host, {
       uiFramework: 'react',
       project: options.name,
@@ -82,8 +88,30 @@ export async function libraryGeneratorInternal(host: Tree, schema: Schema) {
       compiler: options.compiler,
       skipFormat: true,
       testEnvironment: 'jsdom',
+      addPlugin: options.addPlugin,
     });
     tasks.push(viteTask);
+    createOrEditViteConfig(
+      host,
+      {
+        project: options.name,
+        includeLib: true,
+        includeVitest: options.unitTestRunner === 'vitest',
+        inSourceTests: options.inSourceTests,
+        rollupOptionsExternal: [
+          "'react'",
+          "'react-dom'",
+          "'react/jsx-runtime'",
+        ],
+        imports: [
+          options.compiler === 'swc'
+            ? `import react from '@vitejs/plugin-react-swc'`
+            : `import react from '@vitejs/plugin-react'`,
+        ],
+        plugins: ['react()'],
+      },
+      false
+    );
   } else if (options.buildable && options.bundler === 'rollup') {
     const rollupTask = await addRollupBuildTarget(host, options);
     tasks.push(rollupTask);
@@ -120,24 +148,52 @@ export async function libraryGeneratorInternal(host: Tree, schema: Schema) {
     options.unitTestRunner === 'vitest' &&
     options.bundler !== 'vite' // tests are already configured if bundler is vite
   ) {
-    const { vitestGenerator } = ensurePackage<typeof import('@nx/vite')>(
-      '@nx/vite',
-      nxVersion
-    );
+    const { vitestGenerator, createOrEditViteConfig } = ensurePackage<
+      typeof import('@nx/vite')
+    >('@nx/vite', nxVersion);
     const vitestTask = await vitestGenerator(host, {
       uiFramework: 'react',
       project: options.name,
-      coverageProvider: 'c8',
+      coverageProvider: 'v8',
       inSourceTests: options.inSourceTests,
       skipFormat: true,
       testEnvironment: 'jsdom',
+      addPlugin: options.addPlugin,
     });
     tasks.push(vitestTask);
+    createOrEditViteConfig(
+      host,
+      {
+        project: options.name,
+        includeLib: true,
+        includeVitest: true,
+        inSourceTests: options.inSourceTests,
+        rollupOptionsExternal: [
+          "'react'",
+          "'react-dom'",
+          "'react/jsx-runtime'",
+        ],
+        imports: [
+          options.compiler === 'swc'
+            ? `import react from '@vitejs/plugin-react-swc'`
+            : `import react from '@vitejs/plugin-react'`,
+        ],
+        plugins: ['react()'],
+      },
+      true
+    );
   }
 
   if (options.component) {
+    const relativeCwd = getRelativeCwd();
+    const name = joinPathFragments(
+      options.projectRoot,
+      'src/lib',
+      options.fileName
+    );
     const componentTask = await componentGenerator(host, {
-      name: options.fileName,
+      nameAndDirectoryFormat: 'as-provided',
+      name: relativeCwd ? relative(relativeCwd, name) : name,
       project: options.name,
       flat: true,
       style: options.style,
@@ -163,7 +219,7 @@ export async function libraryGeneratorInternal(host: Tree, schema: Schema) {
   }
 
   if (!options.skipPackageJson) {
-    const installReactTask = await installCommonDependencies(host, options);
+    const installReactTask = installCommonDependencies(host, options);
     tasks.push(installReactTask);
   }
 
@@ -175,10 +231,9 @@ export async function libraryGeneratorInternal(host: Tree, schema: Schema) {
 
   if (!options.skipTsConfig) {
     addTsConfigPath(host, options.importPath, [
-      joinPathFragments(
-        options.projectRoot,
-        './src',
-        'index.' + (options.js ? 'js' : 'ts')
+      maybeJs(
+        options,
+        joinPathFragments(options.projectRoot, './src/index.ts')
       ),
     ]);
   }
@@ -187,8 +242,11 @@ export async function libraryGeneratorInternal(host: Tree, schema: Schema) {
     await formatFiles(host);
   }
 
+  tasks.push(() => {
+    logShowProjectCommand(options.name);
+  });
+
   return runTasksInSerial(...tasks);
 }
 
 export default libraryGenerator;
-export const librarySchematic = convertNxGenerator(libraryGenerator);

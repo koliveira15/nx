@@ -2,7 +2,7 @@
   "name": "application",
   "factory": "./src/generators/application/application#applicationGeneratorInternal",
   "schema": {
-    "$schema": "http://json-schema.org/schema",
+    "$schema": "https://json-schema.org/schema",
     "cli": "nx",
     "$id": "NxWebApp",
     "title": "Create a Web Application for Nx",
@@ -36,11 +36,11 @@
             { "value": "css", "label": "CSS" },
             {
               "value": "scss",
-              "label": "SASS(.scss)  [ http://sass-lang.com   ]"
+              "label": "SASS(.scss)  [ https://sass-lang.com   ]"
             },
             {
               "value": "less",
-              "label": "LESS         [ http://lesscss.org     ]"
+              "label": "LESS         [ https://lesscss.org     ]"
             }
           ]
         }
@@ -84,10 +84,10 @@
       },
       "e2eTestRunner": {
         "type": "string",
-        "enum": ["cypress", "playwright", "none"],
+        "enum": ["playwright", "cypress", "none"],
         "x-prompt": "Which E2E test runner would you like to use?",
         "description": "Test runner to use for end to end (e2e) tests",
-        "default": "cypress"
+        "default": "playwright"
       },
       "tags": {
         "type": "string",
@@ -98,6 +98,11 @@
         "description": "Whether or not to configure the ESLint `parserOptions.project` option. We do not do this by default for lint performance reasons.",
         "default": false
       },
+      "strict": {
+        "type": "boolean",
+        "description": "Creates an application with strict mode and strict type checking.",
+        "default": true
+      },
       "standaloneConfig": {
         "description": "Split the project configuration into `<projectRoot>/project.json` rather than including it inside workspace.json",
         "type": "boolean",
@@ -106,7 +111,7 @@
       }
     },
     "required": ["name"],
-    "examplesFile": "## Examples\n\n{% tabs %}\n{% tab label=\"Simple Application\" %}\n\nCreate an application named `my-app`:\n\n```bash\nnx g @nx/web:application my-app\n```\n\n{% /tab %}\n\n{% tab label=\"Application using Vite as bundler\" %}\n\nCreate an application named `my-app`:\n\n```bash\nnx g @nx/web:app my-app --bundler=vite\n```\n\n{% /tab %}\n\n{% tab label=\"Specify directory\" %}\n\nCreate an application named `my-app` in the `my-dir` directory:\n\n```bash\nnx g @nx/web:app my-app --directory=my-dir\n```\n\n{% /tab %}\n\n{% tab label=\"Add tags\" %}\n\nAdd tags to the application (used for linting).\n\n```bash\nnx g @nx/web:app my-app --tags=scope:admin,type:ui\n```\n\n{% /tab %}\n{% /tabs %}\n",
+    "examplesFile": "## Examples\n\n{% tabs %}\n{% tab label=\"Simple Application\" %}\n\nCreate an application named `my-app`:\n\n```bash\nnx g @nx/web:application my-app\n```\n\n{% /tab %}\n\n{% tab label=\"Application using Vite as bundler\" %}\n\nCreate an application named `my-app`:\n\n```bash\nnx g @nx/web:app my-app --bundler=vite\n```\n\nWhen choosing `vite` as the bundler, your unit tests will be set up with `vitest`, unless you choose `none` for `unitTestRunner`.\n\n{% /tab %}\n\n{% tab label=\"Specify directory\" %}\n\nCreate an application named `my-app` in the `my-dir` directory:\n\n{% callout type=\"note\" title=\"Directory Flag Behavior Changes\" %}\nThe command below uses the `as-provided` directory flag behavior, which is the default in Nx 16.8.0. If you're on an earlier version of Nx or using the `derived` option, use `--directory=my-dir`. See the [as-provided vs. derived documentation](/deprecated/as-provided-vs-derived) for more details.\n{% /callout %}\n\n```bash\nnx g @nx/web:app my-app --directory=apps/my-dir/my-app\n```\n\n{% /tab %}\n\n{% tab label=\"Add tags\" %}\n\nAdd tags to the application (used for linting).\n\n```bash\nnx g @nx/web:app my-app --tags=scope:admin,type:ui\n```\n\n{% /tab %}\n{% /tabs %}\n",
     "presets": []
   },
   "aliases": ["app"],

@@ -6,16 +6,27 @@ A representation of the invocation of an Executor
 
 ### Properties
 
+- [cache](../../devkit/documents/Task#cache): boolean
 - [endTime](../../devkit/documents/Task#endtime): number
 - [hash](../../devkit/documents/Task#hash): string
 - [hashDetails](../../devkit/documents/Task#hashdetails): Object
 - [id](../../devkit/documents/Task#id): string
+- [outputs](../../devkit/documents/Task#outputs): string[]
 - [overrides](../../devkit/documents/Task#overrides): any
+- [parallelism](../../devkit/documents/Task#parallelism): boolean
 - [projectRoot](../../devkit/documents/Task#projectroot): string
 - [startTime](../../devkit/documents/Task#starttime): number
 - [target](../../devkit/documents/Task#target): Object
 
 ## Properties
+
+### cache
+
+• `Optional` **cache**: `boolean`
+
+Determines if a given task should be cacheable.
+
+---
 
 ### endTime
 
@@ -41,12 +52,12 @@ Details about the composition of the hash
 
 #### Type declaration
 
-| Name            | Type                                | Description                                                    |
-| :-------------- | :---------------------------------- | :------------------------------------------------------------- |
-| `command`       | `string`                            | Command of the task                                            |
-| `implicitDeps?` | { `[fileName: string]`: `string`; } | Hashes of implicit dependencies which are included in the hash |
-| `nodes`         | { `[name: string]`: `string`; }     | Hashes of inputs used in the hash                              |
-| `runtime?`      | { `[input: string]`: `string`; }    | Hash of the runtime environment which the task was executed    |
+| Name            | Type                                 | Description                                                    |
+| :-------------- | :----------------------------------- | :------------------------------------------------------------- |
+| `command`       | `string`                             | Command of the task                                            |
+| `implicitDeps?` | \{ `[fileName: string]`: `string`; } | Hashes of implicit dependencies which are included in the hash |
+| `nodes`         | \{ `[name: string]`: `string`; }     | Hashes of inputs used in the hash                              |
+| `runtime?`      | \{ `[input: string]`: `string`; }    | Hash of the runtime environment which the task was executed    |
 
 ---
 
@@ -58,11 +69,27 @@ Unique ID
 
 ---
 
+### outputs
+
+• **outputs**: `string`[]
+
+The outputs the task may produce
+
+---
+
 ### overrides
 
 • **overrides**: `any`
 
 Overrides for the configured options of the target
+
+---
+
+### parallelism
+
+• **parallelism**: `boolean`
+
+Determines if a given task should be parallelizable.
 
 ---
 

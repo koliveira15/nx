@@ -8,6 +8,9 @@ describe('js init generator', () => {
 
   beforeEach(() => {
     tree = createTreeWithEmptyWorkspace();
+    // Remove files that should be part of the init generator
+    tree.delete('tsconfig.base.json');
+    tree.delete('.prettierrc');
   });
 
   it('should install prettier package', async () => {
@@ -26,6 +29,7 @@ describe('js init generator', () => {
     const prettierignore = tree.read('.prettierignore', 'utf-8');
     expect(prettierignore).toMatch(/\n\/coverage/);
     expect(prettierignore).toMatch(/\n\/dist/);
+    expect(prettierignore).toMatch(/\n\/\.nx\/cache/);
   });
 
   it('should not overwrite existing .prettierrc and .prettierignore files', async () => {
@@ -104,16 +108,35 @@ describe('js init generator', () => {
 
   it('should not overwrite installed typescript version when is a supported version', async () => {
     updateJson(tree, 'package.json', (json) => {
-      json.devDependencies = { ...json.devDependencies, typescript: '~4.7.0' };
+      json.devDependencies = { ...json.devDependencies, typescript: '~4.9.3' };
       return json;
     });
 
     await init(tree, {});
 
     const packageJson = readJson(tree, 'package.json');
-    expect(packageJson.devDependencies['typescript']).toBe('~4.7.0');
+    expect(packageJson.devDependencies['typescript']).toBe('~4.9.3');
     expect(packageJson.devDependencies['typescript']).not.toBe(
       typescriptVersion
     );
+  });
+
+  it('should support skipping base tsconfig file', async () => {
+    await init(tree, {
+      addTsConfigBase: false,
+    });
+
+    expect(tree.exists('tsconfig.base.json')).toBeFalsy();
+  });
+
+  it('should support skipping prettier setup', async () => {
+    await init(tree, {
+      setUpPrettier: false,
+    });
+
+    const packageJson = readJson(tree, 'package.json');
+    expect(packageJson.devDependencies['prettier']).toBeUndefined();
+    expect(tree.exists('.prettierignore')).toBeFalsy();
+    expect(tree.exists('.prettierrc')).toBeFalsy();
   });
 });

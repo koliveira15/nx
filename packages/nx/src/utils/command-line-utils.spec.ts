@@ -1,9 +1,25 @@
 import { splitArgsIntoNxArgsAndOverrides } from './command-line-utils';
-import { withEnvironmentVariables as withEnvironment } from '../../internal-testing-utils/with-environment';
+import { withEnvironmentVariables as withEnvironment } from '../internal-testing-utils/with-environment';
 
 jest.mock('../project-graph/file-utils');
 
 describe('splitArgs', () => {
+  let originalBase: string;
+  let originalHead: string;
+
+  beforeEach(() => {
+    originalBase = process.env.NX_BASE;
+    originalHead = process.env.NX_HEAD;
+
+    delete process.env.NX_BASE;
+    delete process.env.NX_HEAD;
+  });
+
+  afterEach(() => {
+    process.env.NX_BASE = originalBase;
+    process.env.NX_HEAD = originalHead;
+  });
+
   it('should split nx specific arguments into nxArgs', () => {
     expect(
       splitArgsIntoNxArgsAndOverrides(
@@ -456,6 +472,45 @@ describe('splitArgs', () => {
       ).nxArgs.parallel;
 
       expect(parallel).toEqual(5);
+    });
+
+    it('should be able to be specified in the environment', () => {
+      const { nxArgs } = withEnvironment(
+        {
+          NX_PARALLEL: '5',
+        },
+        () =>
+          splitArgsIntoNxArgsAndOverrides(
+            {
+              $0: '',
+              __overrides_unparsed__: [],
+            },
+            'affected',
+            {} as any,
+            {} as any
+          )
+      );
+      expect(nxArgs.parallel).toEqual(5);
+    });
+
+    it('should be able to override NX_PARALLEL with the parallel flag', () => {
+      const { nxArgs } = withEnvironment(
+        {
+          NX_PARALLEL: '5',
+        },
+        () =>
+          splitArgsIntoNxArgsAndOverrides(
+            {
+              $0: '',
+              __overrides_unparsed__: [],
+              parallel: '3',
+            },
+            'affected',
+            {} as any,
+            {} as any
+          )
+      );
+      expect(nxArgs.parallel).toEqual(3);
     });
   });
 });

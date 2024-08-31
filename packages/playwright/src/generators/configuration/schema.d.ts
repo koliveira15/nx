@@ -1,4 +1,4 @@
-import type { Linter } from '@nx/linter';
+import type { Linter, LinterType } from '@nx/eslint';
 
 export interface ConfigurationGeneratorSchema {
   project: string;
@@ -9,7 +9,8 @@ export interface ConfigurationGeneratorSchema {
   js: boolean; // default is false
   skipFormat: boolean;
   skipPackageJson: boolean;
-  linter: Linter;
+  skipInstall?: boolean;
+  linter: Linter | LinterType;
   setParserOptionsProject: boolean; // default is false
   /**
    * command to give playwright to run the web server
@@ -21,4 +22,6 @@ export interface ConfigurationGeneratorSchema {
    * @example: "http://localhost:4200"
    **/
   webServerAddress?: string;
+  rootProject?: boolean;
+  addPlugin?: boolean;
 }

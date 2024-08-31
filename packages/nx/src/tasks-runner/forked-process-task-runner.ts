@@ -1,10 +1,7 @@
 import { readFileSync, writeFileSync } from 'fs';
-import { config as loadDotEnvFile } from 'dotenv';
-import { expand } from 'dotenv-expand';
 import { ChildProcess, fork, Serializable } from 'child_process';
 import * as chalk from 'chalk';
 import * as logTransformer from 'strong-log-transformer';
-import { workspaceRoot } from '../utils/workspace-root';
 import { DefaultTasksRunnerOptions } from './default-tasks-runner';
 import { output } from '../utils/output';
 import { getCliPath, getPrintableCommandArgsForTask } from './utils';
@@ -18,24 +15,41 @@ import {
 import { stripIndents } from '../utils/strip-indents';
 import { Task, TaskGraph } from '../config/task-graph';
 import { Transform } from 'stream';
+import {
+  PseudoTtyProcess,
+  getPseudoTerminal,
+  PseudoTerminal,
+} from './pseudo-terminal';
+import { signalToCode } from '../utils/exit-codes';
+
+const forkScript = join(__dirname, './fork.js');
 
 const workerPath = join(__dirname, './batch/run-batch.js');
 
 export class ForkedProcessTaskRunner {
-  workspaceRoot = workspaceRoot;
   cliPath = getCliPath();
 
   private readonly verbose = process.env.NX_VERBOSE_LOGGING === 'true';
-  private processes = new Set<ChildProcess>();
+  private processes = new Set<ChildProcess | PseudoTtyProcess>();
 
-  constructor(private readonly options: DefaultTasksRunnerOptions) {
+  private pseudoTerminal: PseudoTerminal | null = PseudoTerminal.isSupported()
+    ? getPseudoTerminal()
+    : null;
+
+  constructor(private readonly options: DefaultTasksRunnerOptions) {}
+
+  async init() {
+    if (this.pseudoTerminal) {
+      await this.pseudoTerminal.init();
+    }
     this.setupProcessEventListeners();
   }
 
   // TODO: vsavkin delegate terminal output printing
   public forkProcessForBatch(
     { executorName, taskGraph: batchTaskGraph }: Batch,
-    fullTaskGraph: TaskGraph
+    fullTaskGraph: TaskGraph,
+    env: NodeJS.ProcessEnv
   ) {
     return new Promise<BatchResults>((res, rej) => {
       try {
@@ -51,18 +65,17 @@ export class ForkedProcessTaskRunner {
             Object.values(batchTaskGraph.tasks)[0]
           );
           output.logCommand(args.join(' '));
-          output.addNewline();
         }
 
         const p = fork(workerPath, {
           stdio: ['inherit', 'inherit', 'inherit', 'ipc'],
-          env: this.getEnvVariablesForProcess(),
+          env,
         });
         this.processes.add(p);
 
         p.once('exit', (code, signal) => {
           this.processes.delete(p);
-          if (code === null) code = this.signalToCode(signal);
+          if (code === null) code = signalToCode(signal);
           if (code !== 0) {
             const results: BatchResults = {};
             for (const rootTaskId of batchTaskGraph.roots) {
@@ -110,16 +123,170 @@ export class ForkedProcessTaskRunner {
     });
   }
 
-  public forkProcessPipeOutputCapture(
+  public async forkProcessLegacy(
+    task: Task,
+    {
+      temporaryOutputPath,
+      streamOutput,
+      pipeOutput,
+      taskGraph,
+      env,
+    }: {
+      temporaryOutputPath: string;
+      streamOutput: boolean;
+      pipeOutput: boolean;
+      taskGraph: TaskGraph;
+      env: NodeJS.ProcessEnv;
+    }
+  ): Promise<{ code: number; terminalOutput: string }> {
+    return pipeOutput
+      ? await this.forkProcessPipeOutputCapture(task, {
+          temporaryOutputPath,
+          streamOutput,
+          taskGraph,
+          env,
+        })
+      : await this.forkProcessDirectOutputCapture(task, {
+          temporaryOutputPath,
+          streamOutput,
+          taskGraph,
+          env,
+        });
+  }
+
+  public async forkProcess(
+    task: Task,
+    {
+      temporaryOutputPath,
+      streamOutput,
+      taskGraph,
+      env,
+      disablePseudoTerminal,
+    }: {
+      temporaryOutputPath: string;
+      streamOutput: boolean;
+      pipeOutput: boolean;
+      taskGraph: TaskGraph;
+      env: NodeJS.ProcessEnv;
+      disablePseudoTerminal: boolean;
+    }
+  ): Promise<{ code: number; terminalOutput: string }> {
+    const shouldPrefix =
+      streamOutput && process.env.NX_PREFIX_OUTPUT === 'true';
+
+    // streamOutput would be false if we are running multiple targets
+    // there's no point in running the commands in a pty if we are not streaming the output
+    if (
+      !this.pseudoTerminal ||
+      disablePseudoTerminal ||
+      !streamOutput ||
+      shouldPrefix
+    ) {
+      return this.forkProcessWithPrefixAndNotTTY(task, {
+        temporaryOutputPath,
+        streamOutput,
+        taskGraph,
+        env,
+      });
+    } else {
+      return this.forkProcessWithPseudoTerminal(task, {
+        temporaryOutputPath,
+        streamOutput,
+        taskGraph,
+        env,
+      });
+    }
+  }
+
+  private async forkProcessWithPseudoTerminal(
+    task: Task,
+    {
+      temporaryOutputPath,
+      streamOutput,
+      taskGraph,
+      env,
+    }: {
+      temporaryOutputPath: string;
+      streamOutput: boolean;
+      taskGraph: TaskGraph;
+      env: NodeJS.ProcessEnv;
+    }
+  ): Promise<{ code: number; terminalOutput: string }> {
+    const args = getPrintableCommandArgsForTask(task);
+    if (streamOutput) {
+      output.logCommand(args.join(' '));
+    }
+
+    const childId = task.id;
+    const p = await this.pseudoTerminal.fork(childId, forkScript, {
+      cwd: process.cwd(),
+      execArgv: process.execArgv,
+      jsEnv: env,
+      quiet: !streamOutput,
+    });
+
+    p.send({
+      targetDescription: task.target,
+      overrides: task.overrides,
+      taskGraph,
+      isVerbose: this.verbose,
+    });
+    this.processes.add(p);
+
+    let terminalOutput = '';
+    p.onOutput((msg) => {
+      terminalOutput += msg;
+    });
+
+    return new Promise((res) => {
+      p.onExit((code) => {
+        // If the exit code is greater than 128, it's a special exit code for a signal
+        if (code >= 128) {
+          process.exit(code);
+        }
+        this.writeTerminalOutput(temporaryOutputPath, terminalOutput);
+        res({
+          code,
+          terminalOutput,
+        });
+      });
+    });
+  }
+
+  private forkProcessPipeOutputCapture(
     task: Task,
     {
       streamOutput,
       temporaryOutputPath,
       taskGraph,
+      env,
     }: {
       streamOutput: boolean;
       temporaryOutputPath: string;
       taskGraph: TaskGraph;
+      env: NodeJS.ProcessEnv;
+    }
+  ) {
+    return this.forkProcessWithPrefixAndNotTTY(task, {
+      streamOutput,
+      temporaryOutputPath,
+      taskGraph,
+      env,
+    });
+  }
+
+  private forkProcessWithPrefixAndNotTTY(
+    task: Task,
+    {
+      streamOutput,
+      temporaryOutputPath,
+      taskGraph,
+      env,
+    }: {
+      streamOutput: boolean;
+      temporaryOutputPath: string;
+      taskGraph: TaskGraph;
+      env: NodeJS.ProcessEnv;
     }
   ) {
     return new Promise<{ code: number; terminalOutput: string }>((res, rej) => {
@@ -127,19 +294,11 @@ export class ForkedProcessTaskRunner {
         const args = getPrintableCommandArgsForTask(task);
         if (streamOutput) {
           output.logCommand(args.join(' '));
-          output.addNewline();
         }
 
         const p = fork(this.cliPath, {
           stdio: ['inherit', 'pipe', 'pipe', 'ipc'],
-          env: this.getEnvVariablesForTask(
-            task,
-            process.env.FORCE_COLOR === undefined
-              ? 'true'
-              : process.env.FORCE_COLOR,
-            null,
-            null
-          ),
+          env,
         });
         this.processes.add(p);
 
@@ -189,7 +348,7 @@ export class ForkedProcessTaskRunner {
 
         p.on('exit', (code, signal) => {
           this.processes.delete(p);
-          if (code === null) code = this.signalToCode(signal);
+          if (code === null) code = signalToCode(signal);
           // we didn't print any output as we were running the command
           // print all the collected output|
           const terminalOutput = outWithErr.join('');
@@ -211,16 +370,18 @@ export class ForkedProcessTaskRunner {
     });
   }
 
-  public forkProcessDirectOutputCapture(
+  private forkProcessDirectOutputCapture(
     task: Task,
     {
       streamOutput,
       temporaryOutputPath,
       taskGraph,
+      env,
     }: {
       streamOutput: boolean;
       temporaryOutputPath: string;
       taskGraph: TaskGraph;
+      env: NodeJS.ProcessEnv;
     }
   ) {
     return new Promise<{ code: number; terminalOutput: string }>((res, rej) => {
@@ -228,16 +389,10 @@ export class ForkedProcessTaskRunner {
         const args = getPrintableCommandArgsForTask(task);
         if (streamOutput) {
           output.logCommand(args.join(' '));
-          output.addNewline();
         }
         const p = fork(this.cliPath, {
           stdio: ['inherit', 'inherit', 'inherit', 'ipc'],
-          env: this.getEnvVariablesForTask(
-            task,
-            undefined,
-            temporaryOutputPath,
-            streamOutput
-          ),
+          env,
         });
         this.processes.add(p);
 
@@ -257,7 +412,7 @@ export class ForkedProcessTaskRunner {
         });
 
         p.on('exit', (code, signal) => {
-          if (code === null) code = this.signalToCode(signal);
+          if (code === null) code = signalToCode(signal);
           // we didn't print any output as we were running the command
           // print all the collected output
           let terminalOutput = '';
@@ -299,200 +454,22 @@ export class ForkedProcessTaskRunner {
     writeFileSync(outputPath, content);
   }
 
-  // region Environment Variables
-  private getEnvVariablesForProcess() {
-    return {
-      // User Process Env Variables override Dotenv Variables
-      ...process.env,
-      // Nx Env Variables overrides everything
-      ...this.getNxEnvVariablesForForkedProcess(
-        process.env.FORCE_COLOR === undefined ? 'true' : process.env.FORCE_COLOR
-      ),
-    };
-  }
-
-  private getEnvVariablesForTask(
-    task: Task,
-    forceColor: string,
-    outputPath: string,
-    streamOutput: boolean
-  ) {
-    // Unload any dot env files at the root of the workspace that were loaded on init of Nx.
-    const taskEnv = this.unloadDotEnvFiles({ ...process.env });
-
-    const res = {
-      // Start With Dotenv Variables
-      ...(process.env.NX_LOAD_DOT_ENV_FILES === 'true'
-        ? this.loadDotEnvFilesForTask(task, taskEnv)
-        : // If not loading dot env files, ensure env vars created by system are still loaded
-          taskEnv),
-      // Nx Env Variables overrides everything
-      ...this.getNxEnvVariablesForTask(
-        task,
-        forceColor,
-        outputPath,
-        streamOutput
-      ),
-    };
-
-    // we have to delete it because if we invoke Nx from within Nx, we need to reset those values
-    if (!outputPath) {
-      delete res.NX_TERMINAL_OUTPUT_PATH;
-      delete res.NX_STREAM_OUTPUT;
-      delete res.NX_PREFIX_OUTPUT;
-    }
-    delete res.NX_BASE;
-    delete res.NX_HEAD;
-    delete res.NX_SET_CLI;
-    return res;
-  }
-
-  private getNxEnvVariablesForForkedProcess(
-    forceColor: string,
-    outputPath?: string,
-    streamOutput?: boolean
-  ) {
-    const env: NodeJS.ProcessEnv = {
-      FORCE_COLOR: forceColor,
-      NX_WORKSPACE_ROOT: this.workspaceRoot,
-      NX_SKIP_NX_CACHE: this.options.skipNxCache ? 'true' : undefined,
-    };
-
-    if (outputPath) {
-      env.NX_TERMINAL_OUTPUT_PATH = outputPath;
-      if (this.options.captureStderr) {
-        env.NX_TERMINAL_CAPTURE_STDERR = 'true';
-      }
-      if (streamOutput) {
-        env.NX_STREAM_OUTPUT = 'true';
-      }
-    }
-    return env;
-  }
-
-  private getNxEnvVariablesForTask(
-    task: Task,
-    forceColor: string,
-    outputPath: string,
-    streamOutput: boolean
-  ) {
-    const env: NodeJS.ProcessEnv = {
-      NX_TASK_TARGET_PROJECT: task.target.project,
-      NX_TASK_TARGET_TARGET: task.target.target,
-      NX_TASK_TARGET_CONFIGURATION: task.target.configuration ?? undefined,
-      NX_TASK_HASH: task.hash,
-      // used when Nx is invoked via Lerna
-      LERNA_PACKAGE_NAME: task.target.project,
-    };
-
-    // TODO: remove this once we have a reasonable way to configure it
-    if (task.target.target === 'test') {
-      env.NX_TERMINAL_CAPTURE_STDERR = 'true';
-    }
-
-    return {
-      ...this.getNxEnvVariablesForForkedProcess(
-        forceColor,
-        outputPath,
-        streamOutput
-      ),
-      ...env,
-    };
-  }
-
-  private loadDotEnvFilesForTask(
-    task: Task,
-    environmentVariables: NodeJS.ProcessEnv
-  ) {
-    // Collect dot env files that may pertain to a task
-    const dotEnvFiles = [
-      // Load DotEnv Files for a configuration in the project root
-      ...(task.target.configuration
-        ? [
-            `${task.projectRoot}/.env.${task.target.target}.${task.target.configuration}`,
-            `${task.projectRoot}/.env.${task.target.configuration}`,
-            `${task.projectRoot}/.${task.target.target}.${task.target.configuration}.env`,
-            `${task.projectRoot}/.${task.target.configuration}.env`,
-          ]
-        : []),
-
-      // Load DotEnv Files for a target in the project root
-      `${task.projectRoot}/.env.${task.target.target}`,
-      `${task.projectRoot}/.${task.target.target}.env`,
-      `${task.projectRoot}/.env.local`,
-      `${task.projectRoot}/.local.env`,
-      `${task.projectRoot}/.env`,
-
-      // Load DotEnv Files for a configuration in the workspace root
-      ...(task.target.configuration
-        ? [
-            `.env.${task.target.target}.${task.target.configuration}`,
-            `.env.${task.target.configuration}`,
-            `.${task.target.target}.${task.target.configuration}.env`,
-            `.${task.target.configuration}.env`,
-          ]
-        : []),
-
-      // Load DotEnv Files for a target in the workspace root
-      `.env.${task.target.target}`,
-      `.${task.target.target}.env`,
-
-      // Load base DotEnv Files at workspace root
-      `.local.env`,
-      `.env.local`,
-      `.env`,
-    ];
-
-    for (const file of dotEnvFiles) {
-      const myEnv = loadDotEnvFile({
-        path: file,
-        processEnv: environmentVariables,
-        // Do not override existing env variables as we load
-        override: false,
-      });
-      environmentVariables = {
-        ...expand({
-          ...myEnv,
-          ignoreProcessEnv: true, // Do not override existing env variables as we load
-        }).parsed,
-        ...environmentVariables,
-      };
-    }
-
-    return environmentVariables;
-  }
-
-  private unloadDotEnvFiles(environmentVariables: NodeJS.ProcessEnv) {
-    const unloadDotEnvFile = (filename: string) => {
-      let parsedDotEnvFile: NodeJS.ProcessEnv = {};
-      loadDotEnvFile({ path: filename, processEnv: parsedDotEnvFile });
-      Object.keys(parsedDotEnvFile).forEach((envVarKey) => {
-        if (environmentVariables[envVarKey] === parsedDotEnvFile[envVarKey]) {
-          delete environmentVariables[envVarKey];
-        }
-      });
-    };
-
-    for (const file of ['.env', '.local.env', '.env.local']) {
-      unloadDotEnvFile(file);
-    }
-    return environmentVariables;
-  }
-
-  // endregion Environment Variables
-
-  private signalToCode(signal: string) {
-    if (signal === 'SIGHUP') return 128 + 1;
-    if (signal === 'SIGINT') return 128 + 2;
-    if (signal === 'SIGTERM') return 128 + 15;
-    return 128;
-  }
-
   private setupProcessEventListeners() {
+    if (this.pseudoTerminal) {
+      this.pseudoTerminal.onMessageFromChildren((message: Serializable) => {
+        process.send(message);
+      });
+    }
+
     // When the nx process gets a message, it will be sent into the task's process
     process.on('message', (message: Serializable) => {
+      // this.publisher.publish(message.toString());
+      if (this.pseudoTerminal) {
+        this.pseudoTerminal.sendMessageToChildren(message);
+      }
+
       this.processes.forEach((p) => {
-        if (p.connected) {
+        if ('connected' in p && p.connected) {
           p.send(message);
         }
       });
@@ -501,23 +478,23 @@ export class ForkedProcessTaskRunner {
     // Terminate any task processes on exit
     process.on('exit', () => {
       this.processes.forEach((p) => {
-        if (p.connected) {
+        if ('connected' in p ? p.connected : p.isAlive) {
           p.kill();
         }
       });
     });
     process.on('SIGINT', () => {
       this.processes.forEach((p) => {
-        if (p.connected) {
+        if ('connected' in p ? p.connected : p.isAlive) {
           p.kill('SIGTERM');
         }
       });
       // we exit here because we don't need to write anything to cache.
-      process.exit();
+      process.exit(signalToCode('SIGINT'));
     });
     process.on('SIGTERM', () => {
       this.processes.forEach((p) => {
-        if (p.connected) {
+        if ('connected' in p ? p.connected : p.isAlive) {
           p.kill('SIGTERM');
         }
       });
@@ -526,7 +503,7 @@ export class ForkedProcessTaskRunner {
     });
     process.on('SIGHUP', () => {
       this.processes.forEach((p) => {
-        if (p.connected) {
+        if ('connected' in p ? p.connected : p.isAlive) {
           p.kill('SIGTERM');
         }
       });

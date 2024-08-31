@@ -1,3 +1,5 @@
+import 'nx/src/internal-testing-utils/mock-project-graph';
+
 import { createTreeWithEmptyWorkspace } from '@nx/devkit/testing';
 import {
   Tree,
@@ -7,7 +9,6 @@ import {
   GeneratorsJson,
   ProjectConfiguration,
   stripIndents,
-  getProjects,
 } from '@nx/devkit';
 
 import generator from './move-workspace-generators-to-local-plugin';
@@ -186,7 +187,7 @@ async function workspaceGeneratorGenerator(
   host.write(
     joinPathFragments(outputDirectory, 'schema.json'),
     stripIndents`{
-    "$schema": "http://json-schema.org/schema",
+    "$schema": "https://json-schema.org/schema",
     "cli": "nx",
     "$id": "<%= name %>",
     "type": "object",

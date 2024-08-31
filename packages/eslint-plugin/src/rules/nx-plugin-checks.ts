@@ -1,19 +1,23 @@
-import type { AST } from 'jsonc-eslint-parser';
 import type { TSESLint } from '@typescript-eslint/utils';
+import { ESLintUtils } from '@typescript-eslint/utils';
+import type { AST } from 'jsonc-eslint-parser';
 
 import {
   ProjectGraphProjectNode,
   readJsonFile,
   workspaceRoot,
 } from '@nx/devkit';
-import { findProject, getSourceFilePath } from '../utils/runtime-lint-utils';
-import { existsSync } from 'fs';
+import { getRootTsConfigPath } from '@nx/js';
 import { registerTsProject } from '@nx/js/src/internal';
+import { existsSync } from 'fs';
 import * as path from 'path';
-
-import { createESLintRule } from '../utils/create-eslint-rule';
-import { readProjectGraph } from '../utils/project-graph-utils';
 import { valid } from 'semver';
+import { readProjectGraph } from '../utils/project-graph-utils';
+import {
+  findProject,
+  getParserServices,
+  getSourceFilePath,
+} from '../utils/runtime-lint-utils';
 
 type Options = [
   {
@@ -48,14 +52,47 @@ export type MessageIds =
 
 export const RULE_NAME = 'nx-plugin-checks';
 
-export default createESLintRule<Options, MessageIds>({
+export default ESLintUtils.RuleCreator(() => ``)<Options, MessageIds>({
   name: RULE_NAME,
   meta: {
     docs: {
       description: 'Checks common nx-plugin configuration files for validity',
-      recommended: 'error',
+      recommended: 'recommended',
     },
-    schema: {},
+    schema: [
+      {
+        type: 'object',
+        properties: {
+          generatorsJson: {
+            type: 'string',
+            description:
+              "The path to the project's generators.json file, relative to the project root",
+          },
+          executorsJson: {
+            type: 'string',
+            description:
+              "The path to the project's executors.json file, relative to the project root",
+          },
+          migrationsJson: {
+            type: 'string',
+            description:
+              "The path to the project's migrations.json file, relative to the project root",
+          },
+          packageJson: {
+            type: 'string',
+            description:
+              "The path to the project's package.json file, relative to the project root",
+          },
+          allowedVersionStrings: {
+            type: 'array',
+            description:
+              'A list of specifiers that are valid for versions within package group. Defaults to ["*", "latest", "next"]',
+            items: { type: 'string' },
+          },
+        },
+        additionalProperties: false,
+      },
+    ],
     type: 'problem',
     messages: {
       invalidSchemaPath: 'Schema path should point to a valid file',
@@ -80,14 +117,14 @@ export default createESLintRule<Options, MessageIds>({
   defaultOptions: [DEFAULT_OPTIONS],
   create(context) {
     // jsonc-eslint-parser adds this property to parserServices where appropriate
-    if (!(context.parserServices as any).isJSON) {
+    if (!getParserServices(context).isJSON) {
       return {};
     }
 
     const { projectGraph, projectRootMappings } = readProjectGraph(RULE_NAME);
 
     const sourceFilePath = getSourceFilePath(
-      context.getFilename(),
+      context.filename ?? context.getFilename(),
       workspaceRoot
     );
 
@@ -114,7 +151,7 @@ export default createESLintRule<Options, MessageIds>({
     }
 
     if (!(global as any).tsProjectRegistered) {
-      registerTsProject(workspaceRoot, 'tsconfig.base.json');
+      registerTsProject(getRootTsConfigPath());
       (global as any).tsProjectRegistered = true;
     }
 
@@ -268,7 +305,7 @@ export function validateEntry(
       });
     } else {
       const schemaFilePath = path.join(
-        path.dirname(context.getFilename()),
+        path.dirname(context.filename ?? context.getFilename()),
         schemaNode.value.value
       );
       if (!existsSync(schemaFilePath)) {
@@ -366,7 +403,7 @@ export function validateImplemenationNode(
     let resolvedPath: string;
 
     const modulePath = path.join(
-      path.dirname(context.getFilename()),
+      path.dirname(context.filename ?? context.getFilename()),
       implementationPath
     );
 

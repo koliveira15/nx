@@ -1,20 +1,24 @@
 import {
   formatFiles,
-  GeneratorCallback,
   joinPathFragments,
   runTasksInSerial,
-  Tree,
+  type GeneratorCallback,
+  type Tree,
 } from '@nx/devkit';
-import { Linter, lintProjectGenerator } from '@nx/linter';
-import { mapLintPattern } from '@nx/linter/src/generators/lint-project/lint-project';
-import { addAngularEsLintDependencies } from './lib/add-angular-eslint-dependencies';
-import type { AddLintingGeneratorSchema } from './schema';
+import { camelize, dasherize } from '@nx/devkit/src/utils/string-utils';
+import { Linter, lintProjectGenerator } from '@nx/eslint';
+import {
+  javaScriptOverride,
+  typeScriptOverride,
+} from '@nx/eslint/src/generators/init/global-eslint-config';
 import {
   findEslintFile,
   isEslintConfigSupported,
   replaceOverridesInLintConfig,
-} from '@nx/linter/src/generators/utils/eslint-file';
-import { camelize, dasherize } from '@nx/devkit/src/utils/string-utils';
+} from '@nx/eslint/src/generators/utils/eslint-file';
+import { addAngularEsLintDependencies } from './lib/add-angular-eslint-dependencies';
+import { isBuildableLibraryProject } from './lib/buildable-project';
+import type { AddLintingGeneratorSchema } from './schema';
 
 export async function addLintingGenerator(
   tree: Tree,
@@ -29,13 +33,12 @@ export async function addLintingGenerator(
       joinPathFragments(options.projectRoot, 'tsconfig.app.json'),
     ],
     unitTestRunner: options.unitTestRunner,
-    eslintFilePatterns: [
-      mapLintPattern(options.projectRoot, 'ts', rootProject),
-      mapLintPattern(options.projectRoot, 'html', rootProject),
-    ],
     setParserOptionsProject: options.setParserOptionsProject,
     skipFormat: true,
     rootProject: rootProject,
+    addPlugin: false,
+    addExplicitTargets: true,
+    skipPackageJson: options.skipPackageJson,
   });
   tasks.push(lintTask);
 
@@ -47,11 +50,7 @@ export async function addLintingGenerator(
       .includes(`${options.projectRoot}/tsconfig.*?.json`);
 
     replaceOverridesInLintConfig(tree, options.projectRoot, [
-      {
-        files: ['*.json'],
-        parser: 'jsonc-eslint-parser',
-        rules: {},
-      },
+      ...(rootProject ? [typeScriptOverride, javaScriptOverride] : []),
       {
         files: ['*.ts'],
         ...(hasParserOptions
@@ -93,11 +92,22 @@ export async function addLintingGenerator(
          */
         rules: {},
       },
+      ...(isBuildableLibraryProject(tree, options.projectName)
+        ? [
+            {
+              files: ['*.json'],
+              parser: 'jsonc-eslint-parser',
+              rules: {
+                '@nx/dependency-checks': 'error',
+              } as any,
+            },
+          ]
+        : []),
     ]);
   }
 
   if (!options.skipPackageJson) {
-    const installTask = addAngularEsLintDependencies(tree);
+    const installTask = addAngularEsLintDependencies(tree, options.projectName);
     tasks.push(installTask);
   }
 

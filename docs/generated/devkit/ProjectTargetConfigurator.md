@@ -1,14 +1,14 @@
 # Type alias: ProjectTargetConfigurator
 
-Ƭ **ProjectTargetConfigurator**: (`file`: `string`) => `Record`<`string`, [`TargetConfiguration`](../../devkit/documents/TargetConfiguration)\>
-
-#### Type declaration
-
-▸ (`file`): `Record`<`string`, [`TargetConfiguration`](../../devkit/documents/TargetConfiguration)\>
+Ƭ **ProjectTargetConfigurator**: (`file`: `string`) => `Record`\<`string`, [`TargetConfiguration`](../../devkit/documents/TargetConfiguration)\>
 
 **`Deprecated`**
 
-Add targets to the projects in a [CreateNodes](../../devkit/documents/CreateNodes) function instead. This will be removed in Nx 18
+Add targets to the projects in a [CreateNodes](../../devkit/documents/CreateNodes) function instead. This will be removed in Nx 20
+
+#### Type declaration
+
+▸ (`file`): `Record`\<`string`, [`TargetConfiguration`](../../devkit/documents/TargetConfiguration)\>
 
 ##### Parameters
 
@@ -18,4 +18,4 @@ Add targets to the projects in a [CreateNodes](../../devkit/documents/CreateNode
 
 ##### Returns
 
-`Record`<`string`, [`TargetConfiguration`](../../devkit/documents/TargetConfiguration)\>
+`Record`\<`string`, [`TargetConfiguration`](../../devkit/documents/TargetConfiguration)\>

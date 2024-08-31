@@ -1,15 +1,16 @@
 import { EnvelopeIcon } from '@heroicons/react/24/solid';
-import { SectionHeading } from '@nx/nx-dev/ui-common';
+import { DiscordIcon, SectionHeading } from '@nx/nx-dev/ui-common';
+import Link from 'next/link';
 
 export function ConnectWithUs(): JSX.Element {
   return (
     <article
       id="community"
-      className="mx-auto flex max-w-7xl flex-col space-y-12 py-12 px-4 sm:px-6 lg:flex-row lg:items-center lg:space-y-0 lg:space-x-20 lg:py-16 lg:px-8"
+      className="mx-auto flex max-w-7xl flex-col space-y-12 px-4 py-12 sm:px-6 lg:flex-row lg:items-center lg:space-x-20 lg:space-y-0 lg:px-8 lg:py-16"
     >
       <header className="space-y-10 md:py-12 lg:w-5/12 xl:w-5/12">
         <div>
-          <SectionHeading as="h1" variant="display" id="connect-with-us">
+          <SectionHeading as="h1" variant="title" id="connect-with-us">
             Let's connect together!
           </SectionHeading>
           <p className="mt-4">
@@ -18,12 +19,13 @@ export function ConnectWithUs(): JSX.Element {
           </p>
           <p className="py-4">
             Looking for community plugins? Find them listed in the{' '}
-            <a
-              href="/extending-nx/registry"
-              className="underline font-semibold"
+            <Link
+              href="/plugin-registry"
+              className="font-semibold underline"
+              prefetch={false}
             >
               plugin registry
-            </a>
+            </Link>
             .
           </p>
         </div>
@@ -32,35 +34,28 @@ export function ConnectWithUs(): JSX.Element {
       <div className="relative flex-none lg:w-7/12 xl:w-7/12">
         <div className="relative flex flex-col space-y-6 md:flex-row md:space-x-6 md:space-y-0">
           <div className="space-y-6 md:mt-24 md:w-1/2">
-            <div className="group relative rounded-lg border border-slate-200 bg-white/60 p-5 transition duration-200 ease-out hover:border-violet-300 dark:border-slate-800/40 dark:bg-slate-800/60 dark:hover:border-violet-900 dark:hover:bg-slate-800">
+            <div className="group relative rounded-lg border border-slate-200 bg-white/60 p-5 transition duration-200 ease-out hover:border-indigo-300 dark:border-slate-800/40 dark:bg-slate-800/60 dark:hover:border-indigo-900 dark:hover:bg-slate-800">
               <div className="relative m-2 mb-6 inline-flex h-10 w-10 items-center justify-center">
-                <div className="absolute inset-0 -m-2 rotate-6 transform rounded-3xl bg-violet-300 transition duration-200 ease-out group-hover:-rotate-3 group-hover:scale-105 dark:bg-violet-900" />
-                <div className="absolute inset-0 -rotate-6 transform rounded-2xl bg-[#4A154B] bg-opacity-75 shadow-inner transition duration-200 ease-out group-hover:rotate-2 group-hover:scale-105" />
-                <svg
-                  fill="currentColor"
+                <div className="absolute inset-0 -m-2 rotate-6 transform rounded-3xl bg-indigo-300 transition duration-200 ease-out group-hover:-rotate-3 group-hover:scale-105 dark:bg-indigo-900" />
+                <div className="absolute inset-0 -rotate-6 transform rounded-2xl bg-[#5865F2] bg-opacity-75 shadow-inner transition duration-200 ease-out group-hover:rotate-2 group-hover:scale-105" />
+                <DiscordIcon
+                  showTitle={true}
                   className="relative inline-block h-5 w-5 transform text-white transition duration-200 ease-out group-hover:scale-110"
-                  role="img"
-                  viewBox="0 0 24 24"
-                  xmlns="http://www.w3.org/2000/svg"
-                >
-                  <title>Slack</title>
-                  <path d="M5.042 15.165a2.528 2.528 0 0 1-2.52 2.523A2.528 2.528 0 0 1 0 15.165a2.527 2.527 0 0 1 2.522-2.52h2.52v2.52zM6.313 15.165a2.527 2.527 0 0 1 2.521-2.52 2.527 2.527 0 0 1 2.521 2.52v6.313A2.528 2.528 0 0 1 8.834 24a2.528 2.528 0 0 1-2.521-2.522v-6.313zM8.834 5.042a2.528 2.528 0 0 1-2.521-2.52A2.528 2.528 0 0 1 8.834 0a2.528 2.528 0 0 1 2.521 2.522v2.52H8.834zM8.834 6.313a2.528 2.528 0 0 1 2.521 2.521 2.528 2.528 0 0 1-2.521 2.521H2.522A2.528 2.528 0 0 1 0 8.834a2.528 2.528 0 0 1 2.522-2.521h6.312zM18.956 8.834a2.528 2.528 0 0 1 2.522-2.521A2.528 2.528 0 0 1 24 8.834a2.528 2.528 0 0 1-2.522 2.521h-2.522V8.834zM17.688 8.834a2.528 2.528 0 0 1-2.523 2.521 2.527 2.527 0 0 1-2.52-2.521V2.522A2.527 2.527 0 0 1 15.165 0a2.528 2.528 0 0 1 2.523 2.522v6.312zM15.165 18.956a2.528 2.528 0 0 1 2.523 2.522A2.528 2.528 0 0 1 15.165 24a2.527 2.527 0 0 1-2.52-2.522v-2.522h2.52zM15.165 17.688a2.527 2.527 0 0 1-2.52-2.523 2.526 2.526 0 0 1 2.52-2.52h6.313A2.527 2.527 0 0 1 24 15.165a2.528 2.528 0 0 1-2.522 2.523h-6.313z" />
-                </svg>
+                />
               </div>
-              <h4 className="mb-2 text-lg font-bold">Join us on Slack</h4>
+              <h4 className="mb-2 text-lg font-bold">Join us on Discord</h4>
               <a
-                href="https://go.nrwl.io/join-slack?utm_source=nx.dev"
+                href="https://go.nx.dev/community"
                 rel="noreferrer"
                 target="_blank"
-                title="Nx Community Slack channel"
+                title="Nx Official Discord Server"
                 className="focus:outline-none"
               >
                 <span className="absolute inset-0" aria-hidden="true"></span>
                 <p className="leading-relaxed">
-                  Join the Nx Community Slack to meet a friendly community of Nx
-                  users. With more than{' '}
-                  <span className="font-semibold">4k+ users</span>, this is a
-                  really great place to ask questions or to talk new ideas!
+                  Join the Official Nx Discord Server to meet a friendly
+                  community of Nx users. This is a really great place to ask
+                  questions or to talk new ideas!
                 </p>
               </a>
             </div>
@@ -97,10 +92,10 @@ export function ConnectWithUs(): JSX.Element {
             </div>
           </div>
           <div className="space-y-6 md:w-1/2">
-            <div className="group relative rounded-lg border border-slate-200 bg-white/60 p-5 transition duration-200 ease-out hover:border-blue-300 dark:border-slate-800/40 dark:bg-slate-800/60 dark:hover:border-blue-900 dark:hover:bg-slate-800">
+            <div className="group relative rounded-lg border border-slate-200 bg-white/60 p-5 transition duration-200 ease-out hover:border-slate-300 dark:border-slate-800/40 dark:bg-slate-800/60 dark:hover:border-slate-900 dark:hover:bg-slate-800">
               <div className="relative m-2 mb-6 inline-flex h-10 w-10 items-center justify-center">
-                <div className="absolute inset-0 -m-2 rotate-6 transform rounded-3xl bg-blue-300 transition duration-200 ease-out group-hover:-rotate-3 group-hover:scale-105 dark:bg-blue-800" />
-                <div className="absolute inset-0 -rotate-6 transform rounded-2xl bg-[#1DA1F2] bg-opacity-75 shadow-inner transition duration-200 ease-out group-hover:rotate-2 group-hover:scale-105" />
+                <div className="absolute inset-0 -m-2 rotate-6 transform rounded-3xl bg-slate-300 transition duration-200 ease-out group-hover:-rotate-3 group-hover:scale-105 dark:bg-slate-800" />
+                <div className="absolute inset-0 -rotate-6 transform rounded-2xl bg-[#000000] bg-opacity-75 shadow-inner transition duration-200 ease-out group-hover:rotate-2 group-hover:scale-105" />
                 <svg
                   fill="currentColor"
                   className="inline-block h-5 w-5 transform text-white transition duration-200 ease-out group-hover:scale-110"
@@ -108,22 +103,22 @@ export function ConnectWithUs(): JSX.Element {
                   viewBox="0 0 24 24"
                   xmlns="http://www.w3.org/2000/svg"
                 >
-                  <title>Twitter</title>
-                  <path d="M23.953 4.57a10 10 0 01-2.825.775 4.958 4.958 0 002.163-2.723c-.951.555-2.005.959-3.127 1.184a4.92 4.92 0 00-8.384 4.482C7.69 8.095 4.067 6.13 1.64 3.162a4.822 4.822 0 00-.666 2.475c0 1.71.87 3.213 2.188 4.096a4.904 4.904 0 01-2.228-.616v.06a4.923 4.923 0 003.946 4.827 4.996 4.996 0 01-2.212.085 4.936 4.936 0 004.604 3.417 9.867 9.867 0 01-6.102 2.105c-.39 0-.779-.023-1.17-.067a13.995 13.995 0 007.557 2.209c9.053 0 13.998-7.496 13.998-13.985 0-.21 0-.42-.015-.63A9.935 9.935 0 0024 4.59z" />
+                  <title>X</title>
+                  <path d="M18.901 1.153h3.68l-8.04 9.19L24 22.846h-7.406l-5.8-7.584-6.638 7.584H.474l8.6-9.83L0 1.154h7.594l5.243 6.932ZM17.61 20.644h2.039L6.486 3.24H4.298Z" />
                 </svg>
               </div>
-              <h4 className="mb-2 text-lg font-bold">Follow us on Twitter</h4>
+              <h4 className="mb-2 text-lg font-bold">Follow us on X</h4>
               <a
-                href="https://twitter.com/NxDevTools?utm_source=nx.dev"
+                href="https://x.com/NxDevTools?utm_source=nx.dev"
                 rel="noreferrer"
                 target="_blank"
-                title="Nx Twitter account"
+                title="Nx X account"
                 className="focus:outline-none"
               >
                 <span className="absolute inset-0" aria-hidden="true"></span>
                 <p className="leading-relaxed">
                   Stay up to date on everything about Nx by following
-                  @NxDevTools on Twitter.
+                  @NxDevTools on X.
                 </p>
               </a>
             </div>

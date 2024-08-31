@@ -26,16 +26,19 @@ The following packages were not simply rescoped `@nrwl` to `@nx`.
 | @nrwl/eslint-plugin-nx | @nx/eslint-plugin |
 | @nrwl/nx-plugin        | @nx/plugin        |
 
+| Nx 15 and lower | Nx 16      | Nx 17      |
+| --------------- | ---------- | ---------- |
+| @nrwl/linter    | @nx/linter | @nx/eslint |
+
 ### Rescope Only
 
 All other packages keep the same name, but change scope from `@nrwl` to `@nx`.
 
-| Nx 15 and lower    | Nx 16 and higher |
+| Nx 15 and lower    | Nx 16            |
 | ------------------ | ---------------- |
 | @nrwl/angular      | @nx/angular      |
 | @nrwl/aws-lambda   | @nx/aws-lambda   |
 | @nrwl/cypress      | @nx/cypress      |
-| @nrwl/deno         | @nx/deno         |
 | @nrwl/detox        | @nx/detox        |
 | @nrwl/devkit       | @nx/devkit       |
 | @nrwl/esbuild      | @nx/esbuild      |
@@ -44,7 +47,6 @@ All other packages keep the same name, but change scope from `@nrwl` to `@nx`.
 | @nrwl/gatsby       | @nx/gatsby       |
 | @nrwl/jest         | @nx/jest         |
 | @nrwl/js           | @nx/js           |
-| @nrwl/linter       | @nx/linter       |
 | @nrwl/nest         | @nx/nest         |
 | @nrwl/netlify      | @nx/netlify      |
 | @nrwl/next         | @nx/next         |
@@ -62,4 +64,4 @@ All other packages keep the same name, but change scope from `@nrwl` to `@nx`.
 
 ## @nrwl Scope End of Life
 
-Starting in version 17, the `@nrwl` scoped packages will no longer be published to npm. Only the `@nx` scoped packages will be available on the npm registry.
+Starting in version 20, the `@nrwl` scoped packages will no longer be published to npm. Only the `@nx` scoped packages will be available on the npm registry.

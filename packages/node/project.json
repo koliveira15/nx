@@ -4,7 +4,6 @@
   "sourceRoot": "packages/node",
   "projectType": "library",
   "targets": {
-    "test": {},
     "build-base": {
       "executor": "@nx/js:tsc",
       "options": {
@@ -48,12 +47,11 @@
       "executor": "nx:run-commands",
       "outputs": ["{workspaceRoot}/build/packages/node"],
       "options": {
-        "commands": [
-          "node ./scripts/copy-readme.js node",
-          "node ./scripts/add-dependency-to-build.js node @nrwl/node"
-        ]
+        "command": "node ./scripts/copy-readme.js node"
       }
     },
-    "lint": {}
+    "add-extra-dependencies": {
+      "command": "node ./scripts/add-dependency-to-build.js node @nrwl/node"
+    }
   }
 }

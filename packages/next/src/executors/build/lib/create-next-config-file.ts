@@ -16,7 +16,7 @@ import {
   writeFileSync,
 } from 'fs-extra';
 import { dirname, extname, join, relative } from 'path';
-import { findNodes } from 'nx/src/utils/typescript';
+import { findNodes } from '@nx/js';
 
 import type { NextBuildBuilderOptions } from '../../../utils/types';
 
@@ -77,10 +77,13 @@ export function createNextConfigFile(
   );
   for (const moduleFile of moduleFilesToCopy) {
     ensureDirSync(dirname(join(context.root, options.outputPath, moduleFile)));
-    copyFileSync(
-      join(context.root, projectRoot, moduleFile),
-      join(context.root, options.outputPath, moduleFile)
-    );
+    // We already generate a build version of package.json in the dist folder.
+    if (moduleFile !== 'package.json') {
+      copyFileSync(
+        join(context.root, projectRoot, moduleFile),
+        join(context.root, options.outputPath, moduleFile)
+      );
+    }
   }
 }
 
@@ -121,7 +124,11 @@ export function getWithNxContent(
         index: getWithNxContextDeclaration.getStart(withNxSource),
         text: stripIndents`function getWithNxContext() {
           return {
-            workspaceRoot: '${workspaceRoot}',
+            workspaceRoot: '${
+              // For Windows, paths like C:\Users\foo\bar need to be written as C:\\Users\\foo\\bar,
+              // or else when the file is read back, the single "\" will be treated as an escape character.
+              workspaceRoot.replaceAll('\\', '\\\\')
+            }',
             libsDir: '${workspaceLayout().libsDir}'
           }
         }`,
@@ -138,7 +145,7 @@ export function findNextConfigPath(
 ): string {
   if (userDefinedConfigPath) {
     const file = userDefinedConfigPath;
-    if (existsSync(file)) return file;
+    if (existsSync(join(dirname, file))) return file;
     throw new Error(
       `Cannot find the Next.js config file: ${userDefinedConfigPath}. Is the path correct in project.json?`
     );

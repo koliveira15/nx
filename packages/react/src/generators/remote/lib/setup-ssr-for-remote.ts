@@ -20,12 +20,17 @@ export async function setupSsrForRemote(
   const tasks: GeneratorCallback[] = [];
   const project = readProjectConfiguration(tree, appName);
 
+  const pathToModuleFederationSsrFiles = options.typescriptConfiguration
+    ? 'module-federation-ssr-ts'
+    : 'module-federation-ssr';
+
   generateFiles(
     tree,
-    joinPathFragments(__dirname, '../files/module-federation-ssr'),
+    joinPathFragments(__dirname, `../files/${pathToModuleFederationSsrFiles}`),
     project.root,
     {
       ...options,
+      port: Number(options?.devServerPort) || 4200,
       appName,
       tmpl: '',
       browserBuildOutputPath: project.targets.build.options.outputPath,
@@ -35,15 +40,19 @@ export async function setupSsrForRemote(
 
   // For hosts to use when running remotes in static mode.
   const originalOutputPath = project.targets.build?.options?.outputPath;
+  const serverOptions = project.targets.server?.options;
+  const serverOutputPath =
+    serverOptions?.outputPath ??
+    joinPathFragments(originalOutputPath, 'server');
+  const serverOutputName = serverOptions?.outputFileName ?? 'main.js';
   project.targets['serve-static'] = {
     dependsOn: ['build', 'server'],
     executor: 'nx:run-commands',
     defaultConfiguration: 'development',
     options: {
       command: `PORT=${options.devServerPort ?? 4200} node ${joinPathFragments(
-        originalOutputPath,
-        'server',
-        'main.js'
+        serverOutputPath,
+        serverOutputName
       )}`,
     },
   };

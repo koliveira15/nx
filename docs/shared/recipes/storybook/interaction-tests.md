@@ -7,22 +7,27 @@ description: This guide explains how you can set up Storybook interaction tests 
 
 [Storybook interaction tests](https://storybook.js.org/docs/react/writing-tests/interaction-testing) allow you to test user interactions within your Storybook stories. It enhances your [Storybook](https://storybook.js.org/) setup, ensuring that not only do your components look right, but they also work correctly when interacted with.
 
+{% youtube
+src="https://youtu.be/SaHoUx-TUs8"
+title="Storybook can do...WHAT???" /%}
+
 You can read more about Storybook interaction tests in the following sections of the Storybook documentation:
 
 - [Storybook interaction tests for React](https://storybook.js.org/docs/react/writing-tests/interaction-testing)
 - [Storybook interaction tests for Angular](https://storybook.js.org/docs/angular/writing-tests/interaction-testing)
+- [Storybook interaction tests for Vue](https://storybook.js.org/docs/vue/writing-tests/interaction-testing)
 - [Storybook test runner](https://storybook.js.org/docs/react/writing-tests/test-runner)
 - [The `play` function](https://storybook.js.org/docs/react/writing-stories/play-function)
 
 {% callout type="warning" title="Set up Storybook in your workspace" %}
-You first need to set up Storybook for your Nx workspace, if you haven't already. You can read the [Storybook plugin overview guide](/packages/storybook) to get started.
+You first need to set up Storybook for your Nx workspace, if you haven't already. You can read the [Storybook plugin overview guide](/nx-api/storybook) to get started.
 {% /callout %}
 
 ## Setup Storybook Interaction Tests
 
 During the setup, you'll be prompted about setting up interaction tests. Choose `yes` when asked if you want to set up Storybook interaction tests.
 
-The `--interactionTests` flag is true by default, so when you're setting up Storybook, you can just press enter to accept the default value, or even pass the flag directly. Make sure to use the framework-specific generators, so that you also get your stories set up correctly:
+The `--interactionTests` flag is `true` by default, so when you're setting up Storybook, you can just press **Enter** to accept the default value, or even pass the flag directly. Make sure to use the framework-specific generators, so that you also get your stories set up correctly:
 
 {% tabs %}
 {% tab label="Angular" %}
@@ -39,6 +44,13 @@ nx g @nx/react:storybook-configuration project-name --interactionTests=true
 ```
 
 {% /tab %}
+{% tab label="Vue" %}
+
+```shell
+nx g @nx/vue:storybook-configuration project-name --interactionTests=true
+```
+
+{% /tab %}
 {% tab label="No framework" %}
 
 ```shell
@@ -50,10 +62,14 @@ nx g @nx/storybook:configuration project-name --interactionTests=true
 
 This command will:
 
-- [Set up Storybook for your project](/packages/storybook) - including the `@storybook/addon-interactions` addon.
+- [Set up Storybook for your project](/nx-api/storybook) - including the `@storybook/addon-interactions` addon.
 - Add a `play` function to your stories.
 - Install the necessary dependencies.
-- Generate a `test-storybook` target in your project's `project.json`, which has a command to invoke the Storybook test runner.
+- [Infer the task](/concepts/inferred-tasks) `test-storybook` for the project, which has a command to invoke the Storybook test runner.
+
+{% callout type="note" title="Using explicit tasks" %}
+If you're on an Nx version lower than 18 or have opted out of using inferred tasks, the `test-storybook` target will be explicitly defined in the project's `project.json` file.
+{% /callout %}
 
 ## Writing an Interaction Test
 
@@ -82,7 +98,7 @@ export function Button() {
 export default Button;
 ```
 
-In your `.stories.ts` file for that component, you can use the play function to simulate interactions. For example:
+In your `.stories.ts` file for that component, you can use the `play` function to simulate interactions. For example:
 
 ```typescript
 export const ButtonClicked: Story = {
@@ -101,7 +117,7 @@ export const ButtonClicked: Story = {
 };
 ```
 
-Here, the play function is simulating a click on the button using the `userEvent.click` method. It is then asserting that the button's text has changed to reflect the number of times it has been clicked.
+Here, the `play` function is simulating a click on the button using the `userEvent.click` method. It is then asserting that the button's text has changed to reflect the number of times it has been clicked.
 
 You can read more about how to write interaction tests in the [Storybook documentation](https://storybook.js.org/docs/react/writing-tests/interaction-testing).
 
@@ -109,13 +125,13 @@ You can read more about how to write interaction tests in the [Storybook documen
 
 To run the interaction tests, you can use the `test-storybook` target that was generated for your project:
 
-```bash
+```shell
 nx test-storybook project-name
 ```
 
 Make sure you have Storybook running in another tab, so that the test runner can connect to it:
 
-```bash
+```shell
 nx storybook project-name
 ```
 

@@ -1,6 +1,10 @@
-import { useCallback, useEffect } from 'react';
+import { useCallback, useEffect, useState } from 'react';
+import { getProjectGraphService } from '../machines/get-services';
 import { ExperimentalFeature } from '../ui-components/experimental-feature';
+import { FocusedPanel } from '../ui-components/focused-panel';
+import { ShowHideAll } from '../ui-components/show-hide-all';
 import { useProjectGraphSelector } from './hooks/use-project-graph-selector';
+import { TracingAlgorithmType } from './machines/interfaces';
 import {
   collapseEdgesSelector,
   focusedProjectNameSelector,
@@ -12,30 +16,30 @@ import {
   textFilterSelector,
 } from './machines/selectors';
 import { CollapseEdgesPanel } from './panels/collapse-edges-panel';
-import { FocusedPanel } from '../ui-components/focused-panel';
 import { GroupByFolderPanel } from './panels/group-by-folder-panel';
-import { ProjectList } from './project-list';
 import { SearchDepth } from './panels/search-depth';
-import { ShowHideAll } from '../ui-components/show-hide-all';
 import { TextFilterPanel } from './panels/text-filter-panel';
 import { TracingPanel } from './panels/tracing-panel';
-import { useEnvironmentConfig } from '../hooks/use-environment-config';
-import { TracingAlgorithmType } from './machines/interfaces';
-import { getProjectGraphService } from '../machines/get-services';
-import { useIntervalWhen } from '../hooks/use-interval-when';
+import { ProjectList } from './project-list';
 /* eslint-disable @nx/enforce-module-boundaries */
 // nx-ignore-next-line
 import { ProjectGraphClientResponse } from 'nx/src/command-line/graph/graph';
 /* eslint-enable @nx/enforce-module-boundaries */
+import {
+  fetchProjectGraph,
+  getProjectGraphDataService,
+  useEnvironmentConfig,
+  usePoll,
+  useRouteConstructor,
+} from '@nx/graph/shared';
 import {
   useNavigate,
   useParams,
   useRouteLoaderData,
   useSearchParams,
 } from 'react-router-dom';
-import { getProjectGraphDataService } from '../hooks/get-project-graph-data-service';
 import { useCurrentPath } from '../hooks/use-current-path';
-import { useRouteConstructor } from '../util';
+import { ProjectDetailsModal } from '../ui-components/project-details-modal';
 
 export function ProjectsSidebar(): JSX.Element {
   const environmentConfig = useEnvironmentConfig();
@@ -61,26 +65,27 @@ export function ProjectsSidebar(): JSX.Element {
   const selectedProjectRouteData = useRouteLoaderData(
     'selectedWorkspace'
   ) as ProjectGraphClientResponse;
+  const [lastHash, setLastHash] = useState(selectedProjectRouteData.hash);
   const params = useParams();
   const navigate = useNavigate();
-  const routeContructor = useRouteConstructor();
+  const routeConstructor = useRouteConstructor();
 
   function resetFocus() {
     projectGraphService.send({ type: 'unfocusProject' });
-    navigate(routeContructor('/projects', true));
+    navigate(routeConstructor('/projects', true));
   }
 
   function showAllProjects() {
-    navigate(routeContructor('/projects/all', true));
+    navigate(routeConstructor('/projects/all', true));
   }
 
   function hideAllProjects() {
     projectGraphService.send({ type: 'deselectAll' });
-    navigate(routeContructor('/projects', true));
+    navigate(routeConstructor('/projects', true));
   }
 
   function showAffectedProjects() {
-    navigate(routeContructor('/projects/affected', true));
+    navigate(routeConstructor('/projects/affected', true));
   }
 
   function searchDepthFilterEnabledChange(checked: boolean) {
@@ -161,12 +166,12 @@ export function ProjectsSidebar(): JSX.Element {
 
   function resetTraceStart() {
     projectGraphService.send({ type: 'clearTraceStart' });
-    navigate(routeContructor('/projects', true));
+    navigate(routeConstructor('/projects', true));
   }
 
   function resetTraceEnd() {
     projectGraphService.send({ type: 'clearTraceEnd' });
-    navigate(routeContructor('/projects', true));
+    navigate(routeConstructor('/projects', true));
   }
 
   function setAlgorithm(algorithm: TracingAlgorithmType) {
@@ -290,31 +295,23 @@ export function ProjectsSidebar(): JSX.Element {
     }
   }, [searchParams]);
 
-  useIntervalWhen(
-    () => {
-      const selectedWorkspaceId =
-        params.selectedWorkspaceId ??
-        environmentConfig.appConfig.defaultWorkspaceId;
-
-      const projectInfo = environmentConfig.appConfig.workspaces.find(
-        (graph) => graph.id === selectedWorkspaceId
+  usePoll(
+    async () => {
+      const response: ProjectGraphClientResponse = await fetchProjectGraph(
+        projectGraphDataService,
+        params,
+        environmentConfig.appConfig
       );
-
-      const fetchProjectGraph = async () => {
-        const response: ProjectGraphClientResponse =
-          await projectGraphDataService.getProjectGraph(
-            projectInfo.projectGraphUrl
-          );
-
-        projectGraphService.send({
-          type: 'updateGraph',
-          projects: response.projects,
-          dependencies: response.dependencies,
-          fileMap: response.fileMap,
-        });
-      };
-
-      fetchProjectGraph();
+      if (response.hash === lastHash) {
+        return;
+      }
+      projectGraphService.send({
+        type: 'updateGraph',
+        projects: response.projects,
+        dependencies: response.dependencies,
+        fileMap: response.fileMap,
+      });
+      setLastHash(response.hash);
     },
     5000,
     environmentConfig.watch
@@ -323,19 +320,22 @@ export function ProjectsSidebar(): JSX.Element {
   const updateTextFilter = useCallback(
     (textFilter: string) => {
       projectGraphService.send({ type: 'filterByText', search: textFilter });
-      navigate(routeContructor('/projects', true));
+      navigate(routeConstructor('/projects', true));
     },
     [projectGraphService]
   );
 
   return (
     <>
+      <ProjectDetailsModal />
+
       {focusedProject ? (
         <FocusedPanel
           focusedLabel={focusedProject}
           resetFocus={resetFocus}
         ></FocusedPanel>
       ) : null}
+
       {isTracing ? (
         <TracingPanel
           start={tracingInfo.start}
@@ -378,8 +378,8 @@ export function ProjectsSidebar(): JSX.Element {
         ></SearchDepth>
 
         <ExperimentalFeature>
-          <div className="mx-4 mt-4 rounded-lg border-2 border-dashed border-purple-500 p-4 shadow-lg dark:border-purple-600 dark:bg-[#0B1221]">
-            <h3 className="cursor-text px-4 py-2 text-sm font-semibold uppercase tracking-wide text-slate-800 dark:text-slate-200 lg:text-xs">
+          <div className="mx-4 mt-8 rounded-lg border-2 border-dashed border-purple-500 p-4 shadow-lg dark:border-purple-600 dark:bg-[#0B1221]">
+            <h3 className="cursor-text px-4 py-2 text-sm font-semibold uppercase tracking-wide text-slate-800 lg:text-xs dark:text-slate-200">
               Experimental Features
             </h3>
             <CollapseEdgesPanel

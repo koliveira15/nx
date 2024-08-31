@@ -2,8 +2,10 @@ import * as enquirer from 'enquirer';
 import { createTreeWithEmptyWorkspace } from 'nx/src/generators/testing-utils/create-tree-with-empty-workspace';
 import type { Tree } from 'nx/src/generators/tree';
 import { updateJson } from 'nx/src/generators/utils/json';
-import { readNxJson } from 'nx/src/generators/utils/nx-json';
+import { workspaceRoot } from 'nx/src/utils/workspace-root';
+import { join } from 'path';
 import { determineProjectNameAndRootOptions } from './project-name-and-root-utils';
+import { setCwd } from '../../internal-testing-utils';
 
 describe('determineProjectNameAndRootOptions', () => {
   let tree: Tree;
@@ -32,6 +34,9 @@ describe('determineProjectNameAndRootOptions', () => {
   describe('no layout', () => {
     beforeEach(() => {
       tree = createTreeWithEmptyWorkspace();
+
+      setCwd('');
+
       jest.clearAllMocks();
     });
 
@@ -45,12 +50,12 @@ describe('determineProjectNameAndRootOptions', () => {
       });
 
       expect(result).toStrictEqual({
-        projectName: 'lib-name',
+        projectName: 'libName',
         names: {
-          projectSimpleName: 'lib-name',
-          projectFileName: 'lib-name',
+          projectSimpleName: 'libName',
+          projectFileName: 'libName',
         },
-        importPath: '@proj/lib-name',
+        importPath: '@proj/libName',
         projectRoot: 'shared',
         projectNameAndRootFormat: 'as-provided',
       });
@@ -66,13 +71,13 @@ describe('determineProjectNameAndRootOptions', () => {
       });
 
       expect(result).toStrictEqual({
-        projectName: 'lib-name',
+        projectName: 'libName',
         names: {
-          projectSimpleName: 'lib-name',
-          projectFileName: 'lib-name',
+          projectSimpleName: 'libName',
+          projectFileName: 'libName',
         },
-        importPath: '@proj/lib-name',
-        projectRoot: 'shared/lib-name',
+        importPath: '@proj/libName',
+        projectRoot: 'shared/libName',
         projectNameAndRootFormat: 'as-provided',
       });
     });
@@ -87,12 +92,12 @@ describe('determineProjectNameAndRootOptions', () => {
       });
 
       expect(result).toEqual({
-        projectName: '@scope/lib-name',
+        projectName: '@scope/libName',
         names: {
-          projectSimpleName: 'lib-name',
-          projectFileName: 'lib-name',
+          projectSimpleName: 'libName',
+          projectFileName: 'libName',
         },
-        importPath: '@scope/lib-name',
+        importPath: '@scope/libName',
         projectRoot: 'shared',
         projectNameAndRootFormat: 'as-provided',
       });
@@ -109,10 +114,10 @@ describe('determineProjectNameAndRootOptions', () => {
       });
 
       expect(result).toEqual({
-        projectName: '@scope/lib-name',
+        projectName: '@scope/libName',
         names: {
-          projectSimpleName: 'lib-name',
-          projectFileName: 'lib-name',
+          projectSimpleName: 'libName',
+          projectFileName: 'libName',
         },
         importPath: '@custom-scope/lib-name',
         projectRoot: 'shared',
@@ -133,20 +138,146 @@ describe('determineProjectNameAndRootOptions', () => {
       });
 
       expect(result).toEqual({
-        projectName: '@scope/lib-name',
+        projectName: '@scope/libName',
         names: {
-          projectSimpleName: 'lib-name',
-          projectFileName: 'lib-name',
+          projectSimpleName: 'libName',
+          projectFileName: 'libName',
         },
-        importPath: '@scope/lib-name',
-        projectRoot: '@scope/lib-name',
+        importPath: '@scope/libName',
+        projectRoot: '@scope/libName',
         projectNameAndRootFormat: 'as-provided',
       });
     });
 
+    it('should append the directory to the cwd when the provided directory does not start with the cwd and format is "as-provided"', async () => {
+      // simulate running in a subdirectory
+      const originalInitCwd = process.env.INIT_CWD;
+      process.env.INIT_CWD = join(workspaceRoot, 'some/path');
+
+      const result = await determineProjectNameAndRootOptions(tree, {
+        name: 'libName',
+        directory: 'nested/lib-name',
+        projectType: 'library',
+        projectNameAndRootFormat: 'as-provided',
+        callingGenerator: '',
+      });
+
+      expect(result).toEqual({
+        projectName: 'libName',
+        names: {
+          projectSimpleName: 'libName',
+          projectFileName: 'libName',
+        },
+        importPath: '@proj/libName',
+        projectRoot: 'some/path/nested/lib-name',
+        projectNameAndRootFormat: 'as-provided',
+      });
+
+      // restore original cwd
+      if (originalInitCwd === undefined) {
+        delete process.env.INIT_CWD;
+      } else {
+        process.env.INIT_CWD = originalInitCwd;
+      }
+    });
+
+    it('should not duplicate the cwd when the provided directory starts with the cwd and format is "as-provided"', async () => {
+      // simulate running in a subdirectory
+      const originalInitCwd = process.env.INIT_CWD;
+      process.env.INIT_CWD = join(workspaceRoot, 'some/path');
+
+      const result = await determineProjectNameAndRootOptions(tree, {
+        name: 'libName',
+        directory: 'some/path/nested/lib-name',
+        projectType: 'library',
+        projectNameAndRootFormat: 'as-provided',
+        callingGenerator: '',
+      });
+
+      expect(result).toEqual({
+        projectName: 'libName',
+        names: {
+          projectSimpleName: 'libName',
+          projectFileName: 'libName',
+        },
+        importPath: '@proj/libName',
+        projectRoot: 'some/path/nested/lib-name',
+        projectNameAndRootFormat: 'as-provided',
+      });
+
+      // restore original cwd
+      if (originalInitCwd === undefined) {
+        delete process.env.INIT_CWD;
+      } else {
+        process.env.INIT_CWD = originalInitCwd;
+      }
+    });
+
+    it('should return the directory considering the cwd when directory is not provided and format is "as-provided"', async () => {
+      // simulate running in a subdirectory
+      const originalInitCwd = process.env.INIT_CWD;
+      process.env.INIT_CWD = join(workspaceRoot, 'some/path');
+
+      const result = await determineProjectNameAndRootOptions(tree, {
+        name: 'libName',
+        projectType: 'library',
+        projectNameAndRootFormat: 'as-provided',
+        callingGenerator: '',
+      });
+
+      expect(result).toEqual({
+        projectName: 'libName',
+        names: {
+          projectSimpleName: 'libName',
+          projectFileName: 'libName',
+        },
+        importPath: '@proj/libName',
+        projectRoot: 'some/path/libName',
+        projectNameAndRootFormat: 'as-provided',
+      });
+
+      // restore original cwd
+      if (originalInitCwd === undefined) {
+        delete process.env.INIT_CWD;
+      } else {
+        process.env.INIT_CWD = originalInitCwd;
+      }
+    });
+
+    it('should not duplicate project name in the directory when directory is not provided and format is "as-provided"', async () => {
+      // simulate running in a subdirectory
+      const originalInitCwd = process.env.INIT_CWD;
+      process.env.INIT_CWD = join(workspaceRoot, 'some/path/libName');
+
+      const result = await determineProjectNameAndRootOptions(tree, {
+        name: 'libName',
+        projectType: 'library',
+        projectNameAndRootFormat: 'as-provided',
+        callingGenerator: '',
+      });
+
+      expect(result).toEqual({
+        projectName: 'libName',
+        names: {
+          projectSimpleName: 'libName',
+          projectFileName: 'libName',
+        },
+        importPath: '@proj/libName',
+        projectRoot: 'some/path/libName',
+        projectNameAndRootFormat: 'as-provided',
+      });
+
+      // restore original cwd
+      if (originalInitCwd === undefined) {
+        delete process.env.INIT_CWD;
+      } else {
+        process.env.INIT_CWD = originalInitCwd;
+      }
+    });
+
     it('should return the project name and directory as provided for root projects', async () => {
       updateJson(tree, 'package.json', (json) => {
-        json.name = 'lib-name';
+        json.name = 'libName';
         return json;
       });
 
@@ -159,32 +290,15 @@ describe('determineProjectNameAndRootOptions', () => {
       });
 
       expect(result).toEqual({
-        projectName: 'lib-name',
+        projectName: 'libName',
         names: {
-          projectSimpleName: 'lib-name',
-          projectFileName: 'lib-name',
+          projectSimpleName: 'libName',
+          projectFileName: 'libName',
         },
-        importPath: 'lib-name',
+        importPath: 'libName',
         projectRoot: '.',
         projectNameAndRootFormat: 'as-provided',
       });
-    });
-
-    it('should derive import path for root projects when package.json does not have a name and format is as-provided', async () => {
-      updateJson(tree, 'package.json', (json) => {
-        json.name = undefined;
-        return json;
-      });
-
-      const result = await determineProjectNameAndRootOptions(tree, {
-        name: 'libName',
-        projectType: 'library',
-        projectNameAndRootFormat: 'as-provided',
-        rootProject: true,
-        callingGenerator: '',
-      });
-
-      expect(result.importPath).toBe('@proj/lib-name');
     });
 
     it('should throw when an invalid name is provided', async () => {
@@ -199,10 +313,110 @@ describe('determineProjectNameAndRootOptions', () => {
       ).rejects.toThrowError();
     });
 
+    it('should handle providing a path as the project name when format is "as-provided"', async () => {
+      const result = await determineProjectNameAndRootOptions(tree, {
+        name: 'shared/libName',
+        projectType: 'library',
+        projectNameAndRootFormat: 'as-provided',
+        callingGenerator: '',
+      });
+
+      expect(result).toEqual({
+        projectName: 'libName',
+        names: {
+          projectSimpleName: 'libName',
+          projectFileName: 'libName',
+        },
+        importPath: '@proj/libName',
+        projectRoot: 'shared/libName',
+        projectNameAndRootFormat: 'as-provided',
+      });
+    });
+
+    it('should handle providing a path including "@" as the project name when format is "as-provided"', async () => {
+      const result = await determineProjectNameAndRootOptions(tree, {
+        name: 'shared/@scope/libName',
+        projectType: 'library',
+        projectNameAndRootFormat: 'as-provided',
+        callingGenerator: '',
+      });
+
+      expect(result).toEqual({
+        projectName: '@scope/libName',
+        names: {
+          projectSimpleName: 'libName',
+          projectFileName: 'libName',
+        },
+        importPath: '@scope/libName',
+        projectRoot: 'shared/@scope/libName',
+        projectNameAndRootFormat: 'as-provided',
+      });
+    });
+
+    it('should handle providing a path including "@" with multiple segments as the project name when format is "as-provided"', async () => {
+      const result = await determineProjectNameAndRootOptions(tree, {
+        name: 'shared/@scope/libName/testing',
+        projectType: 'library',
+        projectNameAndRootFormat: 'as-provided',
+        callingGenerator: '',
+      });
+
+      expect(result).toEqual({
+        projectName: '@scope/libName/testing',
+        names: {
+          projectSimpleName: 'testing',
+          projectFileName: 'libName-testing',
+        },
+        importPath: '@scope/libName/testing',
+        projectRoot: 'shared/@scope/libName/testing',
+        projectNameAndRootFormat: 'as-provided',
+      });
+    });
+
+    it('should handle providing a path including multiple "@" as the project name when format is "as-provided"', async () => {
+      const result = await determineProjectNameAndRootOptions(tree, {
+        name: 'shared/@foo/@scope/libName',
+        projectType: 'library',
+        projectNameAndRootFormat: 'as-provided',
+        callingGenerator: '',
+      });
+
+      expect(result).toEqual({
+        projectName: '@scope/libName',
+        names: {
+          projectSimpleName: 'libName',
+          projectFileName: 'libName',
+        },
+        importPath: '@scope/libName',
+        projectRoot: 'shared/@foo/@scope/libName',
+        projectNameAndRootFormat: 'as-provided',
+      });
+    });
+
     it('should return the derived project name and directory', async () => {
       const result = await determineProjectNameAndRootOptions(tree, {
         name: 'libName',
         directory: 'shared',
+        projectType: 'library',
+        projectNameAndRootFormat: 'derived',
+        callingGenerator: '',
+      });
+
+      expect(result).toEqual({
+        projectName: 'shared-lib-name',
+        names: {
+          projectSimpleName: 'lib-name',
+          projectFileName: 'shared-lib-name',
+        },
+        importPath: '@proj/shared/lib-name',
+        projectRoot: 'shared/lib-name',
+        projectNameAndRootFormat: 'derived',
+      });
+    });
+
+    it('should handle providing a path as the project name when format is "derived"', async () => {
+      const result = await determineProjectNameAndRootOptions(tree, {
+        name: 'shared/libName',
         projectType: 'library',
         projectNameAndRootFormat: 'derived',
         callingGenerator: '',
@@ -257,23 +471,6 @@ describe('determineProjectNameAndRootOptions', () => {
       });
     });
 
-    it('should derive import path for root projects when package.json does not have a name and format is "derived"', async () => {
-      updateJson(tree, 'package.json', (json) => {
-        json.name = undefined;
-        return json;
-      });
-
-      const result = await determineProjectNameAndRootOptions(tree, {
-        name: 'libName',
-        projectType: 'library',
-        projectNameAndRootFormat: 'as-provided',
-        rootProject: true,
-        callingGenerator: '',
-      });
-
-      expect(result.importPath).toBe('@proj/lib-name');
-    });
-
     it(`should handle window's style paths correctly when format is "derived"`, async () => {
       const result = await determineProjectNameAndRootOptions(tree, {
         name: 'libName',
@@ -314,9 +511,9 @@ describe('determineProjectNameAndRootOptions', () => {
       expect(promptCallOptions.choices).toStrictEqual([
         {
           message: `As provided:
-    Name: lib-name
+    Name: libName
     Root: shared`,
-          name: 'lib-name @ shared',
+          name: 'libName @ shared',
         },
         {
           message: `Derived:
@@ -325,32 +522,6 @@ describe('determineProjectNameAndRootOptions', () => {
           name: 'shared-lib-name @ shared/lib-name',
         },
       ]);
-
-      // restore original interactive mode
-      restoreOriginalInteractiveMode();
-    });
-
-    it('should prompt to save default when as-provided is choosen', async () => {
-      // simulate interactive mode
-      ensureInteractiveMode();
-      const promptSpy = jest
-        .spyOn(enquirer, 'prompt')
-        .mockImplementation(() =>
-          Promise.resolve({ format: 'lib-name @ shared', saveDefault: true })
-        );
-
-      await determineProjectNameAndRootOptions(tree, {
-        name: 'libName',
-        projectType: 'library',
-        directory: 'shared',
-        callingGenerator: '@nx/some-plugin:app',
-      });
-
-      expect(promptSpy).toHaveBeenCalledTimes(2);
-
-      expect(readNxJson(tree).generators['@nx/some-plugin:app']).toEqual({
-        projectNameAndRootFormat: 'as-provided',
-      });
 
       // restore original interactive mode
       restoreOriginalInteractiveMode();
@@ -370,13 +541,40 @@ describe('determineProjectNameAndRootOptions', () => {
 
       expect(promptSpy).not.toHaveBeenCalled();
       expect(result).toEqual({
-        projectName: '@scope/lib-name',
+        projectName: '@scope/libName',
+        names: {
+          projectSimpleName: 'libName',
+          projectFileName: 'libName',
+        },
+        importPath: '@scope/libName',
+        projectRoot: 'shared',
+        projectNameAndRootFormat: 'as-provided',
+      });
+
+      // restore original interactive mode
+      restoreOriginalInteractiveMode();
+    });
+
+    it('should not prompt when the resulting name and root are the same for both formats', async () => {
+      // simulate interactive mode
+      ensureInteractiveMode();
+      const promptSpy = jest.spyOn(enquirer, 'prompt');
+
+      const result = await determineProjectNameAndRootOptions(tree, {
+        name: 'lib-name',
+        projectType: 'library',
+        callingGenerator: '',
+      });
+
+      expect(promptSpy).not.toHaveBeenCalled();
+      expect(result).toEqual({
+        projectName: 'lib-name',
         names: {
           projectSimpleName: 'lib-name',
           projectFileName: 'lib-name',
         },
-        importPath: '@scope/lib-name',
-        projectRoot: 'shared',
+        importPath: '@proj/lib-name',
+        projectRoot: 'lib-name',
         projectNameAndRootFormat: 'as-provided',
       });
 
@@ -401,12 +599,12 @@ describe('determineProjectNameAndRootOptions', () => {
       });
 
       expect(result).toEqual({
-        projectName: 'lib-name',
+        projectName: 'libName',
         names: {
-          projectSimpleName: 'lib-name',
-          projectFileName: 'lib-name',
+          projectSimpleName: 'libName',
+          projectFileName: 'libName',
         },
-        importPath: '@proj/lib-name',
+        importPath: '@proj/libName',
         projectRoot: 'shared',
         projectNameAndRootFormat: 'as-provided',
       });
@@ -422,13 +620,13 @@ describe('determineProjectNameAndRootOptions', () => {
       });
 
       expect(result).toStrictEqual({
-        projectName: 'lib-name',
+        projectName: 'libName',
         names: {
-          projectSimpleName: 'lib-name',
-          projectFileName: 'lib-name',
+          projectSimpleName: 'libName',
+          projectFileName: 'libName',
         },
-        importPath: '@proj/lib-name',
-        projectRoot: 'shared/lib-name',
+        importPath: '@proj/libName',
+        projectRoot: 'shared/libName',
         projectNameAndRootFormat: 'as-provided',
       });
     });
@@ -443,12 +641,12 @@ describe('determineProjectNameAndRootOptions', () => {
       });
 
       expect(result).toEqual({
-        projectName: '@scope/lib-name',
+        projectName: '@scope/libName',
         names: {
-          projectSimpleName: 'lib-name',
-          projectFileName: 'lib-name',
+          projectSimpleName: 'libName',
+          projectFileName: 'libName',
         },
-        importPath: '@scope/lib-name',
+        importPath: '@scope/libName',
         projectRoot: 'shared',
         projectNameAndRootFormat: 'as-provided',
       });
@@ -465,10 +663,10 @@ describe('determineProjectNameAndRootOptions', () => {
       });
 
       expect(result).toEqual({
-        projectName: '@scope/lib-name',
+        projectName: '@scope/libName',
         names: {
-          projectSimpleName: 'lib-name',
-          projectFileName: 'lib-name',
+          projectSimpleName: 'libName',
+          projectFileName: 'libName',
         },
         importPath: '@custom-scope/lib-name',
         projectRoot: 'shared',
@@ -477,11 +675,6 @@ describe('determineProjectNameAndRootOptions', () => {
     });
 
     it('should return the directory as the project name when directory is not provided and format is "as-provided"', async () => {
-      updateJson(tree, 'package.json', (json) => {
-        json.name = 'lib-name';
-        return json;
-      });
-
       const result = await determineProjectNameAndRootOptions(tree, {
         name: '@scope/libName',
         projectType: 'library',
@@ -490,20 +683,20 @@ describe('determineProjectNameAndRootOptions', () => {
       });
 
       expect(result).toEqual({
-        projectName: '@scope/lib-name',
+        projectName: '@scope/libName',
         names: {
-          projectSimpleName: 'lib-name',
-          projectFileName: 'lib-name',
+          projectSimpleName: 'libName',
+          projectFileName: 'libName',
         },
-        importPath: '@scope/lib-name',
-        projectRoot: '@scope/lib-name',
+        importPath: '@scope/libName',
+        projectRoot: '@scope/libName',
         projectNameAndRootFormat: 'as-provided',
       });
     });
 
     it('should return the project name and directory as provided for root projects', async () => {
       updateJson(tree, 'package.json', (json) => {
-        json.name = 'lib-name';
+        json.name = 'libName';
         return json;
       });
 
@@ -516,32 +709,15 @@ describe('determineProjectNameAndRootOptions', () => {
       });
 
       expect(result).toEqual({
-        projectName: 'lib-name',
+        projectName: 'libName',
         names: {
-          projectSimpleName: 'lib-name',
-          projectFileName: 'lib-name',
+          projectSimpleName: 'libName',
+          projectFileName: 'libName',
         },
-        importPath: 'lib-name',
+        importPath: 'libName',
         projectRoot: '.',
         projectNameAndRootFormat: 'as-provided',
       });
-    });
-
-    it('should derive import path for root projects when package.json does not have a name and format is "as-provided"', async () => {
-      updateJson(tree, 'package.json', (json) => {
-        json.name = undefined;
-        return json;
-      });
-
-      const result = await determineProjectNameAndRootOptions(tree, {
-        name: 'libName',
-        projectType: 'library',
-        projectNameAndRootFormat: 'as-provided',
-        rootProject: true,
-        callingGenerator: '',
-      });
-
-      expect(result.importPath).toBe('@proj/lib-name');
     });
 
     it('should throw when an invalid name is provided', async () => {
@@ -556,10 +732,110 @@ describe('determineProjectNameAndRootOptions', () => {
       ).rejects.toThrowError();
     });
 
+    it('should handle providing a path as the project name when format is "as-provided"', async () => {
+      const result = await determineProjectNameAndRootOptions(tree, {
+        name: 'shared/libName',
+        projectType: 'library',
+        projectNameAndRootFormat: 'as-provided',
+        callingGenerator: '',
+      });
+
+      expect(result).toEqual({
+        projectName: 'libName',
+        names: {
+          projectSimpleName: 'libName',
+          projectFileName: 'libName',
+        },
+        importPath: '@proj/libName',
+        projectRoot: 'shared/libName',
+        projectNameAndRootFormat: 'as-provided',
+      });
+    });
+
+    it('should handle providing a path including "@" as the project name when format is "as-provided"', async () => {
+      const result = await determineProjectNameAndRootOptions(tree, {
+        name: 'shared/@scope/libName',
+        projectType: 'library',
+        projectNameAndRootFormat: 'as-provided',
+        callingGenerator: '',
+      });
+
+      expect(result).toEqual({
+        projectName: '@scope/libName',
+        names: {
+          projectSimpleName: 'libName',
+          projectFileName: 'libName',
+        },
+        importPath: '@scope/libName',
+        projectRoot: 'shared/@scope/libName',
+        projectNameAndRootFormat: 'as-provided',
+      });
+    });
+
+    it('should handle providing a path including "@" with multiple segments as the project name when format is "as-provided"', async () => {
+      const result = await determineProjectNameAndRootOptions(tree, {
+        name: 'shared/@scope/libName/testing',
+        projectType: 'library',
+        projectNameAndRootFormat: 'as-provided',
+        callingGenerator: '',
+      });
+
+      expect(result).toEqual({
+        projectName: '@scope/libName/testing',
+        names: {
+          projectSimpleName: 'testing',
+          projectFileName: 'libName-testing',
+        },
+        importPath: '@scope/libName/testing',
+        projectRoot: 'shared/@scope/libName/testing',
+        projectNameAndRootFormat: 'as-provided',
+      });
+    });
+
+    it('should handle providing a path including multiple "@" as the project name when format is "as-provided"', async () => {
+      const result = await determineProjectNameAndRootOptions(tree, {
+        name: 'shared/@foo/@scope/libName',
+        projectType: 'library',
+        projectNameAndRootFormat: 'as-provided',
+        callingGenerator: '',
+      });
+
+      expect(result).toEqual({
+        projectName: '@scope/libName',
+        names: {
+          projectSimpleName: 'libName',
+          projectFileName: 'libName',
+        },
+        importPath: '@scope/libName',
+        projectRoot: 'shared/@foo/@scope/libName',
+        projectNameAndRootFormat: 'as-provided',
+      });
+    });
+
     it('should return the derived project name and directory', async () => {
       const result = await determineProjectNameAndRootOptions(tree, {
         name: 'libName',
         directory: 'shared',
+        projectType: 'library',
+        projectNameAndRootFormat: 'derived',
+        callingGenerator: '',
+      });
+
+      expect(result).toEqual({
+        projectName: 'shared-lib-name',
+        names: {
+          projectSimpleName: 'lib-name',
+          projectFileName: 'shared-lib-name',
+        },
+        importPath: '@proj/shared/lib-name',
+        projectRoot: 'libs/shared/lib-name',
+        projectNameAndRootFormat: 'derived',
+      });
+    });
+
+    it('should handle providing a path as the project name when format is "derived"', async () => {
+      const result = await determineProjectNameAndRootOptions(tree, {
+        name: 'shared/libName',
         projectType: 'library',
         projectNameAndRootFormat: 'derived',
         callingGenerator: '',
@@ -636,23 +912,6 @@ describe('determineProjectNameAndRootOptions', () => {
       });
     });
 
-    it('should derive import path for root projects when package.json does not have a name and format is "derived"', async () => {
-      updateJson(tree, 'package.json', (json) => {
-        json.name = undefined;
-        return json;
-      });
-
-      const result = await determineProjectNameAndRootOptions(tree, {
-        name: 'libName',
-        projectType: 'library',
-        projectNameAndRootFormat: 'as-provided',
-        rootProject: true,
-        callingGenerator: '',
-      });
-
-      expect(result.importPath).toBe('@proj/lib-name');
-    });
-
     it('should prompt for the project name and root format', async () => {
       // simulate interactive mode
       ensureInteractiveMode();
@@ -672,9 +931,9 @@ describe('determineProjectNameAndRootOptions', () => {
       expect(promptCallOptions.choices).toStrictEqual([
         {
           message: `As provided:
-    Name: lib-name
+    Name: libName
     Root: shared`,
-          name: 'lib-name @ shared',
+          name: 'libName @ shared',
         },
         {
           message: `Derived:
@@ -702,12 +961,12 @@ describe('determineProjectNameAndRootOptions', () => {
 
       expect(promptSpy).not.toHaveBeenCalled();
       expect(result).toEqual({
-        projectName: '@scope/lib-name',
+        projectName: '@scope/libName',
         names: {
-          projectSimpleName: 'lib-name',
-          projectFileName: 'lib-name',
+          projectSimpleName: 'libName',
+          projectFileName: 'libName',
         },
-        importPath: '@scope/lib-name',
+        importPath: '@scope/libName',
         projectRoot: 'shared',
         projectNameAndRootFormat: 'as-provided',
       });

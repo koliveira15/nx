@@ -1,11 +1,9 @@
 import {
   addDependenciesToPackageJson,
-  convertNxGenerator,
   ensurePackage,
   formatFiles,
   generateFiles,
   GeneratorCallback,
-  joinPathFragments,
   readJson,
   stripIndents,
   Tree,
@@ -20,6 +18,9 @@ import {
   nxVersion,
   prettierVersion,
   supportedTypescriptVersions,
+  swcCoreVersion,
+  swcHelpersVersion,
+  swcNodeVersion,
   typescriptVersion,
 } from '../../utils/versions';
 import { InitSchema } from './schema';
@@ -63,19 +64,34 @@ export async function initGenerator(
   tree: Tree,
   schema: InitSchema
 ): Promise<GeneratorCallback> {
+  return initGeneratorInternal(tree, {
+    addTsConfigBase: true,
+    setUpPrettier: true,
+    ...schema,
+  });
+}
+
+export async function initGeneratorInternal(
+  tree: Tree,
+  schema: InitSchema
+): Promise<GeneratorCallback> {
   const tasks: GeneratorCallback[] = [];
   // add tsconfig.base.json
-  if (!getRootTsConfigFileName(tree)) {
+  if (schema.addTsConfigBase && !getRootTsConfigFileName(tree)) {
     generateFiles(tree, join(__dirname, './files'), '.', {
       fileName: schema.tsConfigName ?? 'tsconfig.base.json',
     });
   }
   const devDependencies = {
     '@nx/js': nxVersion,
-    prettier: prettierVersion,
+    // When loading .ts config files (e.g. webpack.config.ts, jest.config.ts, etc.)
+    // we prefer to use SWC, and fallback to ts-node for workspaces that don't use SWC.
+    '@swc-node/register': swcNodeVersion,
+    '@swc/core': swcCoreVersion,
+    '@swc/helpers': swcHelpersVersion,
   };
 
-  if (!schema.js) {
+  if (!schema.js && !schema.keepExistingVersions) {
     const installedTsVersion = await getInstalledTypescriptVersion(tree);
 
     if (
@@ -88,36 +104,45 @@ export async function initGenerator(
     }
   }
 
-  // https://prettier.io/docs/en/configuration.html
-  const prettierrcNameOptions = [
-    '.prettierrc',
-    '.prettierrc.json',
-    '.prettierrc.yml',
-    '.prettierrc.yaml',
-    '.prettierrc.json5',
-    '.prettierrc.js',
-    '.prettierrc.cjs',
-    'prettier.config.js',
-    'prettier.config.cjs',
-    '.prettierrc.toml',
-  ];
+  if (schema.setUpPrettier) {
+    devDependencies['prettier'] = prettierVersion;
 
-  if (prettierrcNameOptions.every((name) => !tree.exists(name))) {
-    writeJson(tree, '.prettierrc', {
-      singleQuote: true,
-    });
-  }
+    // https://prettier.io/docs/en/configuration.html
+    const prettierrcNameOptions = [
+      '.prettierrc',
+      '.prettierrc.json',
+      '.prettierrc.yml',
+      '.prettierrc.yaml',
+      '.prettierrc.json5',
+      '.prettierrc.js',
+      '.prettierrc.cjs',
+      '.prettierrc.mjs',
+      '.prettierrc.toml',
+      'prettier.config.js',
+      'prettier.config.cjs',
+      'prettier.config.mjs',
+    ];
 
-  if (!tree.exists(`.prettierignore`)) {
-    tree.write(
-      '.prettierignore',
-      stripIndents`
+    if (prettierrcNameOptions.every((name) => !tree.exists(name))) {
+      writeJson(tree, '.prettierrc', {
+        singleQuote: true,
+      });
+    }
+
+    if (!tree.exists(`.prettierignore`)) {
+      tree.write(
+        '.prettierignore',
+        stripIndents`
         # Add files here to ignore them from prettier formatting
         /dist
         /coverage
+        /.nx/cache
+        /.nx/workspace-data
       `
-    );
+      );
+    }
   }
+
   if (tree.exists('.vscode/extensions.json')) {
     updateJson(tree, '.vscode/extensions.json', (json) => {
       json.recommendations ??= [];
@@ -130,13 +155,19 @@ export async function initGenerator(
   }
 
   const installTask = !schema.skipPackageJson
-    ? addDependenciesToPackageJson(tree, {}, devDependencies)
+    ? addDependenciesToPackageJson(
+        tree,
+        {},
+        devDependencies,
+        undefined,
+        schema.keepExistingVersions
+      )
     : () => {};
   tasks.push(installTask);
 
-  ensurePackage('prettier', prettierVersion);
-  if (!schema.skipFormat) {
-    await formatFiles(tree);
+  if (schema.setUpPrettier) {
+    ensurePackage('prettier', prettierVersion);
+    if (!schema.skipFormat) await formatFiles(tree);
   }
 
   return async () => {
@@ -147,5 +178,3 @@ export async function initGenerator(
 }
 
 export default initGenerator;
-
-export const initSchematic = convertNxGenerator(initGenerator);

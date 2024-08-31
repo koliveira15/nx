@@ -1,4 +1,5 @@
 import {
+  detectPackageManager,
   ExecutorContext,
   logger,
   readJsonFile,
@@ -18,6 +19,7 @@ import { checkPublicDirectory } from './lib/check-project';
 import { NextBuildBuilderOptions } from '../../utils/types';
 import { ChildProcess, fork } from 'child_process';
 import { createCliOptions } from '../../utils/create-cli-options';
+import { signalToCode } from 'nx/src/utils/exit-codes';
 
 let childProcess: ChildProcess;
 
@@ -50,9 +52,17 @@ export default async function buildExecutor(
 
   try {
     await runCliBuild(workspaceRoot, projectRoot, options);
-  } catch (error) {
-    logger.error(`Error occurred while trying to run the build command`);
-    logger.error(error);
+  } catch ({ error, code, signal }) {
+    if (code || signal) {
+      logger.error(
+        `Build process exited due to ${code ? 'code ' + code : ''} ${
+          code && signal ? 'and' : ''
+        } ${signal ? 'signal ' + signal : ''}`
+      );
+    } else {
+      logger.error(`Error occurred while trying to run the build command`);
+      logger.error(error);
+    }
     return { success: false };
   } finally {
     if (childProcess) {
@@ -71,6 +81,8 @@ export default async function buildExecutor(
       target: context.targetName,
       root: context.root,
       isProduction: !options.includeDevDependenciesInPackageJson, // By default we remove devDependencies since this is a production build.
+      skipOverrides: options.skipOverrides,
+      skipPackageManager: options.skipPackageManager,
     }
   );
 
@@ -83,10 +95,19 @@ export default async function buildExecutor(
   writeJsonFile(`${options.outputPath}/package.json`, builtPackageJson);
 
   if (options.generateLockfile) {
-    const lockFile = createLockFile(builtPackageJson);
-    writeFileSync(`${options.outputPath}/${getLockFileName()}`, lockFile, {
-      encoding: 'utf-8',
-    });
+    const packageManager = detectPackageManager(context.root);
+    const lockFile = createLockFile(
+      builtPackageJson,
+      context.projectGraph,
+      packageManager
+    );
+    writeFileSync(
+      `${options.outputPath}/${getLockFileName(packageManager)}`,
+      lockFile,
+      {
+        encoding: 'utf-8',
+      }
+    );
   }
 
   // If output path is different from source path, then copy over the config and public files.
@@ -105,37 +126,54 @@ function runCliBuild(
   projectRoot: string,
   options: NextBuildBuilderOptions
 ) {
-  const { experimentalAppOnly, profile, debug, outputPath } = options;
+  const {
+    experimentalAppOnly,
+    experimentalBuildMode,
+    profile,
+    debug,
+    outputPath,
+  } = options;
 
   // Set output path here since it can also be set via CLI
   // We can retrieve it inside plugins/with-nx
   process.env.NX_NEXT_OUTPUT_PATH ??= outputPath;
 
-  const args = createCliOptions({ experimentalAppOnly, profile, debug });
+  const args = createCliOptions({
+    experimentalAppOnly,
+    experimentalBuildMode,
+    profile,
+    debug,
+  });
   return new Promise((resolve, reject) => {
     childProcess = fork(
       require.resolve('next/dist/bin/next'),
       ['build', ...args],
       {
         cwd: pathResolve(workspaceRoot, projectRoot),
-        stdio: 'inherit',
+        stdio: ['ignore', 'inherit', 'inherit', 'ipc'],
         env: process.env,
       }
     );
 
     // Ensure the child process is killed when the parent exits
     process.on('exit', () => childProcess.kill());
-    process.on('SIGTERM', () => childProcess.kill());
 
-    childProcess.on('error', (err) => {
-      reject(err);
+    process.on('SIGTERM', (signal) => {
+      reject({ code: signalToCode(signal), signal });
+    });
+    process.on('SIGINT', (signal) => {
+      reject({ code: signalToCode(signal), signal });
     });
 
-    childProcess.on('exit', (code) => {
+    childProcess.on('error', (err) => {
+      reject({ error: err });
+    });
+
+    childProcess.on('exit', (code, signal) => {
       if (code === 0) {
-        resolve(code);
+        resolve({ code, signal });
       } else {
-        reject(code);
+        reject({ code, signal });
       }
     });
   });

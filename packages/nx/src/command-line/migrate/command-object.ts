@@ -3,9 +3,14 @@ import * as path from 'path';
 import { runNxSync } from '../../utils/child-process';
 import { linkToNxDevAndExamples } from '../yargs-utils/documentation';
 import { execSync } from 'child_process';
-import { getPackageManagerCommand } from '../../utils/package-manager';
+import {
+  copyPackageManagerConfigurationFiles,
+  detectPackageManager,
+  getPackageManagerCommand,
+} from '../../utils/package-manager';
 import { writeJsonFile } from '../../utils/fileutils';
 import { workspaceRoot } from '../../utils/workspace-root';
+import { withVerbose } from '../yargs-utils/shared-options';
 
 export const yargsMigrateCommand: CommandModule = {
   command: 'migrate [packageAndVersion]',
@@ -35,7 +40,7 @@ export const yargsInternalMigrateCommand: CommandModule = {
 function withMigrationOptions(yargs: Argv) {
   const defaultCommitPrefix = 'chore: [nx migration] ';
 
-  return yargs
+  return withVerbose(yargs)
     .positional('packageAndVersion', {
       describe: `The target package and version (e.g, @nx/workspace@16.0.0)`,
       type: 'string',
@@ -111,6 +116,16 @@ function runMigration() {
     if (p === null) {
       runLocalMigrate();
     } else {
+      // ensure local registry from process is not interfering with the install
+      // when we start the process from temp folder the local registry would override the custom registry
+      if (
+        process.env.npm_config_registry &&
+        process.env.npm_config_registry.match(
+          /^https:\/\/registry\.(npmjs\.org|yarnpkg\.com)/
+        )
+      ) {
+        delete process.env.npm_config_registry;
+      }
       execSync(`${p} _migrate ${process.argv.slice(3).join(' ')}`, {
         stdio: ['inherit', 'inherit', 'inherit'],
       });
@@ -121,21 +136,36 @@ function runMigration() {
 }
 
 function nxCliPath() {
+  const version = process.env.NX_MIGRATE_CLI_VERSION || 'latest';
   try {
-    const packageManager = getPackageManagerCommand();
+    const packageManager = detectPackageManager();
+    const pmc = getPackageManagerCommand(packageManager);
 
     const { dirSync } = require('tmp');
     const tmpDir = dirSync().name;
-    const version =
-      process.env.NX_MIGRATE_USE_NEXT === 'true' ? 'next' : 'latest';
     writeJsonFile(path.join(tmpDir, 'package.json'), {
       dependencies: {
         nx: version,
       },
       license: 'MIT',
     });
+    copyPackageManagerConfigurationFiles(workspaceRoot, tmpDir);
+    if (pmc.preInstall) {
+      // ensure package.json and repo in tmp folder is set to a proper package manager state
+      execSync(pmc.preInstall, {
+        cwd: tmpDir,
+        stdio: ['ignore', 'ignore', 'ignore'],
+      });
+      // if it's berry ensure we set the node_linker to node-modules
+      if (packageManager === 'yarn' && pmc.ciInstall.includes('immutable')) {
+        execSync('yarn config set nodeLinker node-modules', {
+          cwd: tmpDir,
+          stdio: ['ignore', 'ignore', 'ignore'],
+        });
+      }
+    }
 
-    execSync(packageManager.install, {
+    execSync(pmc.install, {
       cwd: tmpDir,
       stdio: ['ignore', 'ignore', 'ignore'],
     });
@@ -147,9 +177,9 @@ function nxCliPath() {
     return path.join(tmpDir, `node_modules`, '.bin', 'nx');
   } catch (e) {
     console.error(
-      'Failed to install the latest version of the migration script. Using the current version.'
+      `Failed to install the ${version} version of the migration script. Using the current version.`
     );
-    if (process.env.NX_VERBOSE_LOGGING) {
+    if (process.env.NX_VERBOSE_LOGGING === 'true') {
       console.error(e);
     }
     return null;

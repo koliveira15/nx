@@ -1,4 +1,5 @@
 import {
+  addDependenciesToPackageJson,
   formatFiles,
   GeneratorCallback,
   joinPathFragments,
@@ -19,22 +20,49 @@ import {
 } from './lib/normalize-remote';
 import { setupSsrForHost } from './lib/setup-ssr-for-host';
 import { updateModuleFederationE2eProject } from './lib/update-module-federation-e2e-project';
-import { Schema } from './schema';
+import { NormalizedSchema, Schema } from './schema';
+import { addMfEnvToTargetDefaultInputs } from '../../utils/add-mf-env-to-inputs';
+import { isValidVariable } from '@nx/js';
+import { moduleFederationEnhancedVersion } from '../../utils/versions';
 
-export async function hostGenerator(host: Tree, schema: Schema) {
+export async function hostGenerator(
+  host: Tree,
+  schema: Schema
+): Promise<GeneratorCallback> {
   return hostGeneratorInternal(host, {
     projectNameAndRootFormat: 'derived',
     ...schema,
   });
 }
 
-export async function hostGeneratorInternal(host: Tree, schema: Schema) {
+export async function hostGeneratorInternal(
+  host: Tree,
+  schema: Schema
+): Promise<GeneratorCallback> {
   const tasks: GeneratorCallback[] = [];
-  const options = await normalizeOptions<Schema>(
-    host,
-    schema,
-    '@nx/react:host'
-  );
+  const options: NormalizedSchema = {
+    ...(await normalizeOptions<Schema>(host, schema, '@nx/react:host')),
+    js: schema.js ?? false,
+    typescriptConfiguration: schema.js
+      ? false
+      : schema.typescriptConfiguration ?? true,
+    dynamic: schema.dynamic ?? false,
+    // TODO(colum): remove when MF works with Crystal
+    addPlugin: false,
+  };
+
+  // Check to see if remotes are provided and also check if --dynamic is provided
+  // if both are check that the remotes are valid names else throw an error.
+  if (options.dynamic && options.remotes?.length > 0) {
+    options.remotes.forEach((remote) => {
+      const isValidRemote = isValidVariable(remote);
+      if (!isValidRemote.isValid) {
+        throw new Error(
+          `Invalid remote name provided: ${remote}. ${isValidRemote.message}`
+        );
+      }
+    });
+  }
 
   const initTask = await applicationGenerator(host, {
     ...options,
@@ -54,7 +82,7 @@ export async function hostGeneratorInternal(host: Tree, schema: Schema) {
       const remoteName = await normalizeRemoteName(host, remote, options);
       remotesWithPorts.push({ name: remoteName, port: remotePort });
 
-      await remoteGenerator(host, {
+      const remoteTask = await remoteGenerator(host, {
         name: remote,
         directory: normalizeRemoteDirectory(remote, options),
         style: options.style,
@@ -65,7 +93,13 @@ export async function hostGeneratorInternal(host: Tree, schema: Schema) {
         ssr: options.ssr,
         skipFormat: true,
         projectNameAndRootFormat: options.projectNameAndRootFormat,
+        typescriptConfiguration: options.typescriptConfiguration,
+        js: options.js,
+        dynamic: options.dynamic,
+        host: options.name,
+        skipPackageJson: options.skipPackageJson,
       });
+      tasks.push(remoteTask);
       remotePort++;
     }
   }
@@ -93,10 +127,25 @@ export async function hostGeneratorInternal(host: Tree, schema: Schema) {
     const projectConfig = readProjectConfiguration(host, options.projectName);
     projectConfig.targets.server.options.webpackConfig = joinPathFragments(
       projectConfig.root,
-      'webpack.server.config.js'
+      `webpack.server.config.${options.typescriptConfiguration ? 'ts' : 'js'}`
     );
     updateProjectConfiguration(host, options.projectName, projectConfig);
   }
+
+  if (!options.setParserOptionsProject) {
+    host.delete(
+      joinPathFragments(options.appProjectRoot, 'tsconfig.lint.json')
+    );
+  }
+
+  addMfEnvToTargetDefaultInputs(host);
+
+  const installTask = addDependenciesToPackageJson(
+    host,
+    {},
+    { '@module-federation/enhanced': moduleFederationEnhancedVersion }
+  );
+  tasks.push(installTask);
 
   if (!options.skipFormat) {
     await formatFiles(host);

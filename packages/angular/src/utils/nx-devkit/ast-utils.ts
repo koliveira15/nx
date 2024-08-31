@@ -678,7 +678,9 @@ function getListOfRoutes(
 
 export function isNgStandaloneApp(tree: Tree, projectName: string) {
   const project = readProjectConfiguration(tree, projectName);
-  const mainFile = project.targets?.build?.options?.main;
+  const mainFile =
+    project.targets?.build?.options?.main ??
+    project.targets?.build?.options?.browser;
 
   if (project.projectType !== 'application' || !mainFile) {
     return false;
@@ -824,6 +826,29 @@ export function addProviderToComponent(
   );
 }
 
+/**
+ * Add a view provider to a Standalone Component
+ * @param host Virtual Tree
+ * @param source TS Source File containing the Component
+ * @param componentPath Path to the Component
+ * @param symbolName The provider to add
+ */
+export function addViewProviderToComponent(
+  host: Tree,
+  source: ts.SourceFile,
+  componentPath: string,
+  symbolName: string
+): ts.SourceFile {
+  return _addSymbolToDecoratorMetadata(
+    host,
+    source,
+    componentPath,
+    'viewProviders',
+    symbolName,
+    'Component'
+  );
+}
+
 export function addDeclarationToModule(
   host: Tree,
   source: ts.SourceFile,
@@ -873,7 +898,8 @@ export function readBootstrapInfo(
 
   let mainPath;
   try {
-    mainPath = config.targets.build.options.main;
+    mainPath =
+      config.targets.build.options.main ?? config.targets.build.options.browser;
   } catch (e) {
     throw new Error('Main file cannot be located');
   }

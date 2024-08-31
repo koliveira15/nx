@@ -1,10 +1,15 @@
 import { joinPathFragments } from '../../../utils/path';
-import { parseYarnLockfile, stringifyYarnLockfile } from './yarn-parser';
+import {
+  getYarnLockfileNodes,
+  getYarnLockfileDependencies,
+  stringifyYarnLockfile,
+} from './yarn-parser';
 import { pruneProjectGraph } from './project-graph-pruning';
 import { vol } from 'memfs';
 import { ProjectGraph } from '../../../config/project-graph';
 import { PackageJson } from '../../../utils/package-json';
 import { ProjectGraphBuilder } from '../../../project-graph/project-graph-builder';
+import { CreateDependenciesContext } from '../../../project-graph/plugins';
 
 jest.mock('fs', () => {
   const memFs = require('memfs').fs;
@@ -168,7 +173,6 @@ describe('yarn LockFile utility', () => {
     let graph: ProjectGraph;
 
     beforeEach(() => {
-      const builder = new ProjectGraphBuilder();
       lockFile = require(joinPathFragments(
         __dirname,
         '__fixtures__/nextjs/yarn.lock'
@@ -177,7 +181,39 @@ describe('yarn LockFile utility', () => {
         __dirname,
         '__fixtures__/nextjs/package.json'
       ));
-      parseYarnLockfile(lockFile, packageJson, builder);
+
+      const hash = uniq('mock-hash');
+      const externalNodes = getYarnLockfileNodes(lockFile, hash, packageJson);
+      const pg = {
+        nodes: {},
+        dependencies: {},
+        externalNodes,
+      };
+      const ctx: CreateDependenciesContext = {
+        projects: {},
+        externalNodes,
+        fileMap: {
+          nonProjectFiles: [],
+          projectFileMap: {},
+        },
+        filesToProcess: {
+          nonProjectFiles: [],
+          projectFileMap: {},
+        },
+        nxJsonConfiguration: null,
+        workspaceRoot: '/virtual',
+      };
+      const dependencies = getYarnLockfileDependencies(lockFile, hash, ctx);
+
+      const builder = new ProjectGraphBuilder(pg);
+      for (const dep of dependencies) {
+        builder.addDependency(
+          dep.source,
+          dep.target,
+          dep.type,
+          'sourceFile' in dep ? dep.sourceFile : null
+        );
+      }
       graph = builder.getUpdatedProjectGraph();
     });
 
@@ -383,12 +419,17 @@ describe('yarn LockFile utility', () => {
         __dirname,
         '__fixtures__/auxiliary-packages/package.json'
       ));
-      const builder = new ProjectGraphBuilder();
-      parseYarnLockfile(classicLockFile, packageJson, builder);
-      const graph = builder.getUpdatedProjectGraph();
-      expect(Object.keys(graph.externalNodes).length).toEqual(127);
 
-      expect(graph.externalNodes['npm:minimatch']).toMatchInlineSnapshot(`
+      const hash = uniq('mock-hash');
+      const externalNodes = getYarnLockfileNodes(
+        classicLockFile,
+        hash,
+        packageJson
+      );
+
+      expect(Object.keys(externalNodes).length).toEqual(127);
+
+      expect(externalNodes['npm:minimatch']).toMatchInlineSnapshot(`
         {
           "data": {
             "hash": "sha512-J7p63hRiAjw1NDEww1W7i37+ByIrOWO5XQQAzZ3VOcL0PNybwpfmV/N05zFAzwQ9USyEcX6t3UO+K5aqBQOIHw==",
@@ -399,7 +440,7 @@ describe('yarn LockFile utility', () => {
           "type": "npm",
         }
       `);
-      expect(graph.externalNodes['npm:minimatch@5.1.1']).toMatchInlineSnapshot(`
+      expect(externalNodes['npm:minimatch@5.1.1']).toMatchInlineSnapshot(`
         {
           "data": {
             "hash": "sha512-362NP+zlprccbEt/SkxKfRMHnNY85V74mVnpUpNyr3F35covl09Kec7/sEFLt3RA4oXmewtoaanoIf67SE5Y5g==",
@@ -410,7 +451,7 @@ describe('yarn LockFile utility', () => {
           "type": "npm",
         }
       `);
-      expect(graph.externalNodes['npm:postgres']).toMatchInlineSnapshot(`
+      expect(externalNodes['npm:postgres']).toMatchInlineSnapshot(`
         {
           "data": {
             "hash": "postgres|https://codeload.github.com/charsleysa/postgres/tar.gz/3b1a01b2da3e2fafb1a79006f838eff11a8de3cb",
@@ -421,7 +462,7 @@ describe('yarn LockFile utility', () => {
           "type": "npm",
         }
       `);
-      expect(graph.externalNodes['npm:eslint-plugin-disable-autofix'])
+      expect(externalNodes['npm:eslint-plugin-disable-autofix'])
         .toMatchInlineSnapshot(`
         {
           "data": {
@@ -465,9 +506,40 @@ describe('yarn LockFile utility', () => {
         '__fixtures__/auxiliary-packages/yarn.lock.pruned'
       )).default;
 
-      const builder = new ProjectGraphBuilder();
-      parseYarnLockfile(lockFile, packageJson, builder);
+      const hash = uniq('mock-hash');
+      const externalNodes = getYarnLockfileNodes(lockFile, hash, packageJson);
+      const pg = {
+        nodes: {},
+        dependencies: {},
+        externalNodes,
+      };
+      const ctx: CreateDependenciesContext = {
+        projects: {},
+        externalNodes,
+        fileMap: {
+          nonProjectFiles: [],
+          projectFileMap: {},
+        },
+        filesToProcess: {
+          nonProjectFiles: [],
+          projectFileMap: {},
+        },
+        nxJsonConfiguration: null,
+        workspaceRoot: '/virtual',
+      };
+      const dependencies = getYarnLockfileDependencies(lockFile, hash, ctx);
+
+      const builder = new ProjectGraphBuilder(pg);
+      for (const dep of dependencies) {
+        builder.addDependency(
+          dep.source,
+          dep.target,
+          dep.type,
+          'sourceFile' in dep ? dep.sourceFile : null
+        );
+      }
       const graph = builder.getUpdatedProjectGraph();
+
       const prunedGraph = pruneProjectGraph(graph, normalizedPackageJson);
       const result = stringifyYarnLockfile(
         prunedGraph,
@@ -503,9 +575,44 @@ describe('yarn LockFile utility', () => {
         '__fixtures__/auxiliary-packages/yarn.lock.pruned'
       )).default;
 
-      const builder = new ProjectGraphBuilder();
-      parseYarnLockfile(lockFile, normalizedPackageJson, builder);
+      const hash = uniq('mock-hash');
+      const externalNodes = getYarnLockfileNodes(
+        lockFile,
+        hash,
+        normalizedPackageJson
+      );
+      const pg = {
+        nodes: {},
+        dependencies: {},
+        externalNodes,
+      };
+      const ctx: CreateDependenciesContext = {
+        projects: {},
+        externalNodes,
+        fileMap: {
+          nonProjectFiles: [],
+          projectFileMap: {},
+        },
+        filesToProcess: {
+          nonProjectFiles: [],
+          projectFileMap: {},
+        },
+        nxJsonConfiguration: null,
+        workspaceRoot: '/virtual',
+      };
+      const dependencies = getYarnLockfileDependencies(lockFile, hash, ctx);
+
+      const builder = new ProjectGraphBuilder(pg);
+      for (const dep of dependencies) {
+        builder.addDependency(
+          dep.source,
+          dep.target,
+          dep.type,
+          'sourceFile' in dep ? dep.sourceFile : null
+        );
+      }
       const graph = builder.getUpdatedProjectGraph();
+
       const prunedGraph = pruneProjectGraph(graph, normalizedPackageJson);
       const result = stringifyYarnLockfile(
         prunedGraph,
@@ -529,12 +636,17 @@ describe('yarn LockFile utility', () => {
         __dirname,
         '__fixtures__/auxiliary-packages/package.json'
       ));
-      const builder = new ProjectGraphBuilder();
-      parseYarnLockfile(berryLockFile, packageJson, builder);
-      const graph = builder.getUpdatedProjectGraph();
-      expect(Object.keys(graph.externalNodes).length).toEqual(129);
 
-      expect(graph.externalNodes['npm:minimatch']).toMatchInlineSnapshot(`
+      const hash = uniq('mock-hash');
+      const externalNodes = getYarnLockfileNodes(
+        berryLockFile,
+        hash,
+        packageJson
+      );
+
+      expect(Object.keys(externalNodes).length).toEqual(129);
+
+      expect(externalNodes['npm:minimatch']).toMatchInlineSnapshot(`
         {
           "data": {
             "hash": "c154e566406683e7bcb746e000b84d74465b3a832c45d59912b9b55cd50dee66e5c4b1e5566dba26154040e51672f9aa450a9aef0c97cfc7336b78b7afb9540a",
@@ -545,7 +657,7 @@ describe('yarn LockFile utility', () => {
           "type": "npm",
         }
       `);
-      expect(graph.externalNodes['npm:minimatch@5.1.1']).toMatchInlineSnapshot(`
+      expect(externalNodes['npm:minimatch@5.1.1']).toMatchInlineSnapshot(`
         {
           "data": {
             "hash": "215edd0978320a3354188f84a537d45841f2449af4df4379f79b9b777e71aa4f5722cc9d1717eabd2a70d38ef76ab7b708d24d83ea6a6c909dfd8833de98b437",
@@ -556,7 +668,7 @@ describe('yarn LockFile utility', () => {
           "type": "npm",
         }
       `);
-      expect(graph.externalNodes['npm:postgres']).toMatchInlineSnapshot(`
+      expect(externalNodes['npm:postgres']).toMatchInlineSnapshot(`
         {
           "data": {
             "hash": "521660853e0c9f1c604cf43d32c75e2b4675e2d912eaec7bb6749716539dd53f1dfaf575a422087f6a53362f5162f9a4b8a88cc1dadf9d7580423fc05137767a",
@@ -567,7 +679,7 @@ describe('yarn LockFile utility', () => {
           "type": "npm",
         }
       `);
-      expect(graph.externalNodes['npm:eslint-plugin-disable-autofix'])
+      expect(externalNodes['npm:eslint-plugin-disable-autofix'])
         .toMatchInlineSnapshot(`
         {
           "data": {
@@ -612,9 +724,40 @@ describe('yarn LockFile utility', () => {
         '__fixtures__/auxiliary-packages/package.json'
       ));
 
-      const builder = new ProjectGraphBuilder();
-      parseYarnLockfile(lockFile, packageJson, builder);
+      const hash = uniq('mock-hash');
+      const externalNodes = getYarnLockfileNodes(lockFile, hash, packageJson);
+      const pg = {
+        nodes: {},
+        dependencies: {},
+        externalNodes,
+      };
+      const ctx: CreateDependenciesContext = {
+        projects: {},
+        externalNodes,
+        fileMap: {
+          nonProjectFiles: [],
+          projectFileMap: {},
+        },
+        filesToProcess: {
+          nonProjectFiles: [],
+          projectFileMap: {},
+        },
+        nxJsonConfiguration: null,
+        workspaceRoot: '/virtual',
+      };
+      const dependencies = getYarnLockfileDependencies(lockFile, hash, ctx);
+
+      const builder = new ProjectGraphBuilder(pg);
+      for (const dep of dependencies) {
+        builder.addDependency(
+          dep.source,
+          dep.target,
+          dep.type,
+          'sourceFile' in dep ? dep.sourceFile : null
+        );
+      }
       const graph = builder.getUpdatedProjectGraph();
+
       const prunedGraph = pruneProjectGraph(graph, normalizedPackageJson);
       const result = stringifyYarnLockfile(
         prunedGraph,
@@ -664,9 +807,40 @@ __metadata:
           },
         };
 
-        const builder = new ProjectGraphBuilder();
-        parseYarnLockfile(lockFile, packageJson, builder);
+        const hash = uniq('mock-hash');
+        const externalNodes = getYarnLockfileNodes(lockFile, hash, packageJson);
+        const pg = {
+          nodes: {},
+          dependencies: {},
+          externalNodes,
+        };
+        const ctx: CreateDependenciesContext = {
+          projects: {},
+          externalNodes,
+          fileMap: {
+            nonProjectFiles: [],
+            projectFileMap: {},
+          },
+          filesToProcess: {
+            nonProjectFiles: [],
+            projectFileMap: {},
+          },
+          nxJsonConfiguration: null,
+          workspaceRoot: '/virtual',
+        };
+        const dependencies = getYarnLockfileDependencies(lockFile, hash, ctx);
+
+        const builder = new ProjectGraphBuilder(pg);
+        for (const dep of dependencies) {
+          builder.addDependency(
+            dep.source,
+            dep.target,
+            dep.type,
+            'sourceFile' in dep ? dep.sourceFile : null
+          );
+        }
         const graph = builder.getUpdatedProjectGraph();
+
         expect(graph.externalNodes).toMatchInlineSnapshot(`
           {
             "npm:@docusaurus/core": {
@@ -728,10 +902,10 @@ __metadata:
           },
         };
 
-        const builder = new ProjectGraphBuilder();
-        parseYarnLockfile(lockFile, packageJson, builder);
-        const graph = builder.getUpdatedProjectGraph();
-        expect(graph.externalNodes).toMatchInlineSnapshot(`
+        const hash = uniq('mock-hash');
+        const externalNodes = getYarnLockfileNodes(lockFile, hash, packageJson);
+
+        expect(externalNodes).toMatchInlineSnapshot(`
                   {
                     "npm:@docusaurus/core": {
                       "data": {
@@ -808,10 +982,10 @@ postgres@charsleysa/postgres#fix-errors-compiled:
         },
       };
 
-      const builder = new ProjectGraphBuilder();
-      parseYarnLockfile(lockFile, packageJson, builder);
-      const graph = builder.getUpdatedProjectGraph();
-      expect(graph.externalNodes['npm:@nrwl/nx-cloud']).toMatchInlineSnapshot(`
+      const hash = uniq('mock-hash');
+      const externalNodes = getYarnLockfileNodes(lockFile, hash, packageJson);
+
+      expect(externalNodes['npm:@nrwl/nx-cloud']).toMatchInlineSnapshot(`
         {
           "data": {
             "hash": "sha512-iJIPP46+saFZK748FKU4u4YZH+Sv3ZvZPbMwGVMhwqhOYcrlO5aSa0lpilyoN8WuhooKNqcCfiqshx6V577fTg==",
@@ -822,7 +996,7 @@ postgres@charsleysa/postgres#fix-errors-compiled:
           "type": "npm",
         }
       `);
-      expect(graph.externalNodes['npm:nx-cloud']).toMatchInlineSnapshot(`
+      expect(externalNodes['npm:nx-cloud']).toMatchInlineSnapshot(`
         {
           "data": {
             "hash": "sha512-Rq7ynvkYzAJ67N3pDqU6cMqwvWP7WXJGP4EFjLxgUrRHNCccqDPggeAqePodfk3nZEUrZB8F5QBKZuuw1DR3oA==",
@@ -833,7 +1007,7 @@ postgres@charsleysa/postgres#fix-errors-compiled:
           "type": "npm",
         }
       `);
-      expect(graph.externalNodes['npm:postgres']).toMatchInlineSnapshot(`
+      expect(externalNodes['npm:postgres']).toMatchInlineSnapshot(`
         {
           "data": {
             "hash": "postgres|https://codeload.github.com/charsleysa/postgres/tar.gz/3b1a01b2da3e2fafb1a79006f838eff11a8de3cb",
@@ -878,10 +1052,10 @@ postgres@charsleysa/postgres#fix-errors-compiled:
         },
       };
 
-      const builder = new ProjectGraphBuilder();
-      parseYarnLockfile(lockFile, packageJson, builder);
-      const graph = builder.getUpdatedProjectGraph();
-      expect(graph.externalNodes['npm:@nrwl/nx-cloud']).toMatchInlineSnapshot(`
+      const hash = uniq('mock-hash');
+      const externalNodes = getYarnLockfileNodes(lockFile, hash, packageJson);
+
+      expect(externalNodes['npm:@nrwl/nx-cloud']).toMatchInlineSnapshot(`
           {
             "data": {
               "hash": "sha512-iJIPP46+saFZK748FKU4u4YZH+Sv3ZvZPbMwGVMhwqhOYcrlO5aSa0lpilyoN8WuhooKNqcCfiqshx6V577fTg==",
@@ -892,7 +1066,7 @@ postgres@charsleysa/postgres#fix-errors-compiled:
             "type": "npm",
           }
         `);
-      expect(graph.externalNodes['npm:nx-cloud']).toMatchInlineSnapshot(`
+      expect(externalNodes['npm:nx-cloud']).toMatchInlineSnapshot(`
           {
             "data": {
               "hash": "sha512-Rq7ynvkYzAJ67N3pDqU6cMqwvWP7WXJGP4EFjLxgUrRHNCccqDPggeAqePodfk3nZEUrZB8F5QBKZuuw1DR3oA==",
@@ -903,7 +1077,7 @@ postgres@charsleysa/postgres#fix-errors-compiled:
             "type": "npm",
           }
         `);
-      expect(graph.externalNodes['npm:postgres']).toMatchInlineSnapshot(`
+      expect(externalNodes['npm:postgres']).toMatchInlineSnapshot(`
           {
             "data": {
               "hash": "postgres|https://codeload.github.com/charsleysa/postgres/tar.gz/3b1a01b2da3e2fafb1a79006f838eff11a8de3cb",
@@ -934,10 +1108,10 @@ nx-cloud@latest:
         },
       };
 
-      const builder = new ProjectGraphBuilder();
-      parseYarnLockfile(lockFile, packageJson, builder);
-      const graph = builder.getUpdatedProjectGraph();
-      expect(graph.externalNodes['npm:nx-cloud']).toMatchInlineSnapshot(`
+      const hash = uniq('mock-hash');
+      const externalNodes = getYarnLockfileNodes(lockFile, hash, packageJson);
+
+      expect(externalNodes['npm:nx-cloud']).toMatchInlineSnapshot(`
           {
             "data": {
               "hash": "sha512-Rq7ynvkYzAJ67N3pDqU6cMqwvWP7WXJGP4EFjLxgUrRHNCccqDPggeAqePodfk3nZEUrZB8F5QBKZuuw1DR3oA==",
@@ -961,12 +1135,17 @@ nx-cloud@latest:
         __dirname,
         '__fixtures__/auxiliary-packages/package.json'
       ));
-      const builder = new ProjectGraphBuilder();
-      parseYarnLockfile(berryLockFile, packageJson, builder);
-      const graph = builder.getUpdatedProjectGraph();
-      expect(Object.keys(graph.externalNodes).length).toEqual(129);
 
-      expect(graph.externalNodes['npm:react']).toMatchInlineSnapshot(`
+      const hash = uniq('mock-hash');
+      const externalNodes = getYarnLockfileNodes(
+        berryLockFile,
+        hash,
+        packageJson
+      );
+
+      expect(Object.keys(externalNodes).length).toEqual(129);
+
+      expect(externalNodes['npm:react']).toMatchInlineSnapshot(`
         {
           "data": {
             "hash": "88e38092da8839b830cda6feef2e8505dec8ace60579e46aa5490fc3dc9bba0bd50336507dc166f43e3afc1c42939c09fe33b25fae889d6f402721dcd78fca1b",
@@ -978,7 +1157,7 @@ nx-cloud@latest:
         }
       `);
 
-      expect(graph.externalNodes['npm:typescript']).toMatchInlineSnapshot(`
+      expect(externalNodes['npm:typescript']).toMatchInlineSnapshot(`
         {
           "data": {
             "hash": "ee000bc26848147ad423b581bd250075662a354d84f0e06eb76d3b892328d8d4440b7487b5a83e851b12b255f55d71835b008a66cbf8f255a11e4400159237db",
@@ -989,7 +1168,7 @@ nx-cloud@latest:
           "type": "npm",
         }
       `);
-      expect(graph.externalNodes['npm:@nrwl/devkit']).toMatchInlineSnapshot(`
+      expect(externalNodes['npm:@nrwl/devkit']).toMatchInlineSnapshot(`
         {
           "data": {
             "hash": "7dcc3600998448c496228e062d7edd8ecf959fa1ddb9721e91bb1f60f1a2284fd0e12e09edc022170988e2fb54acf101c79dc09fe9c54a21c9941e682eb73b92",
@@ -1000,7 +1179,7 @@ nx-cloud@latest:
           "type": "npm",
         }
       `);
-      expect(graph.externalNodes['npm:postgres']).toMatchInlineSnapshot(`
+      expect(externalNodes['npm:postgres']).toMatchInlineSnapshot(`
         {
           "data": {
             "hash": "521660853e0c9f1c604cf43d32c75e2b4675e2d912eaec7bb6749716539dd53f1dfaf575a422087f6a53362f5162f9a4b8a88cc1dadf9d7580423fc05137767a",
@@ -1011,7 +1190,7 @@ nx-cloud@latest:
           "type": "npm",
         }
       `);
-      expect(graph.externalNodes['npm:eslint-plugin-disable-autofix'])
+      expect(externalNodes['npm:eslint-plugin-disable-autofix'])
         .toMatchInlineSnapshot(`
         {
           "data": {
@@ -1073,10 +1252,14 @@ nx-cloud@latest:
         __dirname,
         '__fixtures__/duplicate-package/package.json'
       ));
-      const builder = new ProjectGraphBuilder();
-      parseYarnLockfile(classicLockFile, packageJson, builder);
-      const graph = builder.getUpdatedProjectGraph();
-      expect(Object.keys(graph.externalNodes).length).toEqual(371);
+      const hash = uniq('mock-hash');
+      const externalNodes = getYarnLockfileNodes(
+        classicLockFile,
+        hash,
+        packageJson
+      );
+
+      expect(Object.keys(externalNodes).length).toEqual(371);
     });
   });
 
@@ -1103,9 +1286,41 @@ nx-cloud@latest:
         __dirname,
         '__fixtures__/optional/package.json'
       ));
-      const builder = new ProjectGraphBuilder();
-      parseYarnLockfile(lockFile, packageJson, builder);
+
+      const hash = uniq('mock-hash');
+      const externalNodes = getYarnLockfileNodes(lockFile, hash, packageJson);
+      const pg = {
+        nodes: {},
+        dependencies: {},
+        externalNodes,
+      };
+      const ctx: CreateDependenciesContext = {
+        projects: {},
+        externalNodes,
+        fileMap: {
+          nonProjectFiles: [],
+          projectFileMap: {},
+        },
+        filesToProcess: {
+          nonProjectFiles: [],
+          projectFileMap: {},
+        },
+        nxJsonConfiguration: null,
+        workspaceRoot: '/virtual',
+      };
+      const dependencies = getYarnLockfileDependencies(lockFile, hash, ctx);
+
+      const builder = new ProjectGraphBuilder(pg);
+      for (const dep of dependencies) {
+        builder.addDependency(
+          dep.source,
+          dep.target,
+          dep.type,
+          'sourceFile' in dep ? dep.sourceFile : null
+        );
+      }
       const graph = builder.getUpdatedProjectGraph();
+
       expect(Object.keys(graph.externalNodes).length).toEqual(103);
 
       const prunedGraph = pruneProjectGraph(graph, packageJson);
@@ -1286,9 +1501,41 @@ nx-cloud@latest:
         __dirname,
         '__fixtures__/pruning/package.json'
       ));
-      const builder = new ProjectGraphBuilder();
-      parseYarnLockfile(lockFile, packageJson, builder);
+
+      const hash = uniq('mock-hash');
+      const externalNodes = getYarnLockfileNodes(lockFile, hash, packageJson);
+      const pg = {
+        nodes: {},
+        dependencies: {},
+        externalNodes,
+      };
+      const ctx: CreateDependenciesContext = {
+        projects: {},
+        externalNodes,
+        fileMap: {
+          nonProjectFiles: [],
+          projectFileMap: {},
+        },
+        filesToProcess: {
+          nonProjectFiles: [],
+          projectFileMap: {},
+        },
+        nxJsonConfiguration: null,
+        workspaceRoot: '/virtual',
+      };
+      const dependencies = getYarnLockfileDependencies(lockFile, hash, ctx);
+
+      const builder = new ProjectGraphBuilder(pg);
+      for (const dep of dependencies) {
+        builder.addDependency(
+          dep.source,
+          dep.target,
+          dep.type,
+          'sourceFile' in dep ? dep.sourceFile : null
+        );
+      }
       const graph = builder.getUpdatedProjectGraph();
+
       const prunedGraph = pruneProjectGraph(graph, typescriptPackageJson);
       const result = stringifyYarnLockfile(
         prunedGraph,
@@ -1317,9 +1564,41 @@ nx-cloud@latest:
         __dirname,
         '__fixtures__/pruning/package.json'
       ));
-      const builder = new ProjectGraphBuilder();
-      parseYarnLockfile(lockFile, packageJson, builder);
+
+      const hash = uniq('mock-hash');
+      const externalNodes = getYarnLockfileNodes(lockFile, hash, packageJson);
+      const pg = {
+        nodes: {},
+        dependencies: {},
+        externalNodes,
+      };
+      const ctx: CreateDependenciesContext = {
+        projects: {},
+        externalNodes,
+        fileMap: {
+          nonProjectFiles: [],
+          projectFileMap: {},
+        },
+        filesToProcess: {
+          nonProjectFiles: [],
+          projectFileMap: {},
+        },
+        nxJsonConfiguration: null,
+        workspaceRoot: '/virtual',
+      };
+      const dependencies = getYarnLockfileDependencies(lockFile, hash, ctx);
+
+      const builder = new ProjectGraphBuilder(pg);
+      for (const dep of dependencies) {
+        builder.addDependency(
+          dep.source,
+          dep.target,
+          dep.type,
+          'sourceFile' in dep ? dep.sourceFile : null
+        );
+      }
       const graph = builder.getUpdatedProjectGraph();
+
       const prunedGraph = pruneProjectGraph(graph, multiPackageJson);
       const result = stringifyYarnLockfile(
         prunedGraph,
@@ -1354,10 +1633,10 @@ nx-cloud@latest:
         __dirname,
         '__fixtures__/workspaces/package.json'
       ));
-      const builder = new ProjectGraphBuilder();
-      parseYarnLockfile(lockFile, packageJson, builder);
-      const graph = builder.getUpdatedProjectGraph();
-      expect(Object.keys(graph.externalNodes).length).toEqual(5);
+      const hash = uniq('mock-hash');
+      const externalNodes = getYarnLockfileNodes(lockFile, hash, packageJson);
+
+      expect(Object.keys(externalNodes).length).toEqual(5);
     });
 
     it('should parse berry lock file', async () => {
@@ -1369,10 +1648,10 @@ nx-cloud@latest:
         __dirname,
         '__fixtures__/workspaces/package.json'
       ));
-      const builder = new ProjectGraphBuilder();
-      parseYarnLockfile(lockFile, packageJson, builder);
-      const graph = builder.getUpdatedProjectGraph();
-      expect(Object.keys(graph.externalNodes).length).toEqual(5);
+      const hash = uniq('mock-hash');
+      const externalNodes = getYarnLockfileNodes(lockFile, hash, packageJson);
+
+      expect(Object.keys(externalNodes).length).toEqual(5);
     });
   });
 
@@ -1435,9 +1714,38 @@ type-fest@^0.20.2:
           tslib: '^2.4.0',
         },
       };
+      const hash = uniq('mock-hash');
+      const externalNodes = getYarnLockfileNodes(lockFile, hash, packageJson);
+      const pg = {
+        nodes: {},
+        dependencies: {},
+        externalNodes,
+      };
+      const ctx: CreateDependenciesContext = {
+        projects: {},
+        externalNodes,
+        fileMap: {
+          nonProjectFiles: [],
+          projectFileMap: {},
+        },
+        filesToProcess: {
+          nonProjectFiles: [],
+          projectFileMap: {},
+        },
+        nxJsonConfiguration: null,
+        workspaceRoot: '/virtual',
+      };
+      const dependencies = getYarnLockfileDependencies(lockFile, hash, ctx);
 
-      const builder = new ProjectGraphBuilder();
-      parseYarnLockfile(lockFile, packageJson, builder);
+      const builder = new ProjectGraphBuilder(pg);
+      for (const dep of dependencies) {
+        builder.addDependency(
+          dep.source,
+          dep.target,
+          dep.type,
+          'sourceFile' in dep ? dep.sourceFile : null
+        );
+      }
       const graph = builder.getUpdatedProjectGraph();
       expect(graph.externalNodes['npm:tslib']).toMatchInlineSnapshot(`
         {
@@ -1525,9 +1833,40 @@ __metadata:
         },
       };
 
-      const builder = new ProjectGraphBuilder();
-      parseYarnLockfile(lockFile, packageJson, builder);
+      const hash = uniq('mock-hash');
+      const externalNodes = getYarnLockfileNodes(lockFile, hash, packageJson);
+      const pg = {
+        nodes: {},
+        dependencies: {},
+        externalNodes,
+      };
+      const ctx: CreateDependenciesContext = {
+        projects: {},
+        externalNodes,
+        fileMap: {
+          nonProjectFiles: [],
+          projectFileMap: {},
+        },
+        filesToProcess: {
+          nonProjectFiles: [],
+          projectFileMap: {},
+        },
+        nxJsonConfiguration: null,
+        workspaceRoot: '/virtual',
+      };
+      const dependencies = getYarnLockfileDependencies(lockFile, hash, ctx);
+
+      const builder = new ProjectGraphBuilder(pg);
+      for (const dep of dependencies) {
+        builder.addDependency(
+          dep.source,
+          dep.target,
+          dep.type,
+          'sourceFile' in dep ? dep.sourceFile : null
+        );
+      }
       const graph = builder.getUpdatedProjectGraph();
+
       expect(graph.externalNodes['npm:tslib']).toMatchInlineSnapshot(`
         {
           "data": {
@@ -1623,9 +1962,40 @@ __metadata:
         '__fixtures__/mixed-keys/package.json'
       ));
 
-      const builder = new ProjectGraphBuilder();
-      parseYarnLockfile(lockFile, packageJson, builder);
+      const hash = uniq('mock-hash');
+      const externalNodes = getYarnLockfileNodes(lockFile, hash, packageJson);
+      const pg = {
+        nodes: {},
+        dependencies: {},
+        externalNodes,
+      };
+      const ctx: CreateDependenciesContext = {
+        projects: {},
+        externalNodes,
+        fileMap: {
+          nonProjectFiles: [],
+          projectFileMap: {},
+        },
+        filesToProcess: {
+          nonProjectFiles: [],
+          projectFileMap: {},
+        },
+        nxJsonConfiguration: null,
+        workspaceRoot: '/virtual',
+      };
+      const dependencies = getYarnLockfileDependencies(lockFile, hash, ctx);
+
+      const builder = new ProjectGraphBuilder(pg);
+      for (const dep of dependencies) {
+        builder.addDependency(
+          dep.source,
+          dep.target,
+          dep.type,
+          'sourceFile' in dep ? dep.sourceFile : null
+        );
+      }
       const graph = builder.getUpdatedProjectGraph();
+
       expect(graph.externalNodes).toMatchInlineSnapshot(`
         {
           "npm:@isaacs/cliui": {
@@ -1835,9 +2205,40 @@ __metadata:
         '__fixtures__/mixed-keys/package.json'
       ));
 
-      const builder = new ProjectGraphBuilder();
-      parseYarnLockfile(lockFile, packageJson, builder);
+      const hash = uniq('mock-hash');
+      const externalNodes = getYarnLockfileNodes(lockFile, hash, packageJson);
+      const pg = {
+        nodes: {},
+        dependencies: {},
+        externalNodes,
+      };
+      const ctx: CreateDependenciesContext = {
+        projects: {},
+        externalNodes,
+        fileMap: {
+          nonProjectFiles: [],
+          projectFileMap: {},
+        },
+        filesToProcess: {
+          nonProjectFiles: [],
+          projectFileMap: {},
+        },
+        nxJsonConfiguration: null,
+        workspaceRoot: '/virtual',
+      };
+      const dependencies = getYarnLockfileDependencies(lockFile, hash, ctx);
+
+      const builder = new ProjectGraphBuilder(pg);
+      for (const dep of dependencies) {
+        builder.addDependency(
+          dep.source,
+          dep.target,
+          dep.type,
+          'sourceFile' in dep ? dep.sourceFile : null
+        );
+      }
       const graph = builder.getUpdatedProjectGraph();
+
       expect(graph.externalNodes).toMatchInlineSnapshot(`
         {
           "npm:@isaacs/cliui": {
@@ -2099,10 +2500,10 @@ __metadata:
         },
       };
 
-      const builder = new ProjectGraphBuilder();
-      parseYarnLockfile(lockFile, packageJson, builder);
-      const graph = builder.getUpdatedProjectGraph();
-      expect(graph.externalNodes).toMatchInlineSnapshot(`
+      const hash = uniq('mock-hash');
+      const externalNodes = getYarnLockfileNodes(lockFile, hash, packageJson);
+
+      expect(externalNodes).toMatchInlineSnapshot(`
         {
           "npm:@octokit/request-error": {
             "data": {
@@ -2196,9 +2597,41 @@ __metadata:
           resolve: '^1.12.0',
         },
       };
-      const builder = new ProjectGraphBuilder();
-      parseYarnLockfile(lockFile, packageJson, builder);
+
+      const hash = uniq('mock-hash');
+      const externalNodes = getYarnLockfileNodes(lockFile, hash, packageJson);
+      const pg = {
+        nodes: {},
+        dependencies: {},
+        externalNodes,
+      };
+      const ctx: CreateDependenciesContext = {
+        projects: {},
+        externalNodes,
+        fileMap: {
+          nonProjectFiles: [],
+          projectFileMap: {},
+        },
+        filesToProcess: {
+          nonProjectFiles: [],
+          projectFileMap: {},
+        },
+        nxJsonConfiguration: null,
+        workspaceRoot: '/virtual',
+      };
+      const dependencies = getYarnLockfileDependencies(lockFile, hash, ctx);
+
+      const builder = new ProjectGraphBuilder(pg);
+      for (const dep of dependencies) {
+        builder.addDependency(
+          dep.source,
+          dep.target,
+          dep.type,
+          'sourceFile' in dep ? dep.sourceFile : null
+        );
+      }
       const graph = builder.getUpdatedProjectGraph();
+
       const prunedGraph = pruneProjectGraph(graph, packageJson);
       const result = stringifyYarnLockfile(prunedGraph, lockFile, packageJson);
       expect(result).toMatchInlineSnapshot(`
@@ -2247,3 +2680,7 @@ __metadata:
     });
   });
 });
+
+function uniq(str: string) {
+  return `str-${(Math.random() * 10000).toFixed(0)}`;
+}

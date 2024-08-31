@@ -4,15 +4,15 @@
  * and where we create the actual unix socket/named pipe for the daemon.
  */
 import { statSync, writeFileSync } from 'fs';
-import { ensureDirSync, rmdirSync } from 'fs-extra';
+import { ensureDirSync, rmSync } from 'fs-extra';
 import { join } from 'path';
-import { projectGraphCacheDirectory } from '../utils/cache-directory';
+import { workspaceDataDirectory } from '../utils/cache-directory';
 import { createHash } from 'crypto';
 import { tmpdir } from 'tmp';
 import { workspaceRoot } from '../utils/workspace-root';
 
 export const DAEMON_DIR_FOR_CURRENT_WORKSPACE = join(
-  projectGraphCacheDirectory,
+  workspaceDataDirectory,
   'd'
 );
 
@@ -21,13 +21,12 @@ export const DAEMON_OUTPUT_LOG_FILE = join(
   'daemon.log'
 );
 
-const socketDir = createSocketDir();
-
-export const DAEMON_SOCKET_PATH = join(
-  socketDir,
-  // As per notes above on socket/named pipe length limitations, we keep this intentionally short
-  'd.sock'
-);
+export const getDaemonSocketDir = () =>
+  join(
+    getSocketDir(),
+    // As per notes above on socket/named pipe length limitations, we keep this intentionally short
+    'd.sock'
+  );
 
 export function writeDaemonLogs(error?: string) {
   const file = join(DAEMON_DIR_FOR_CURRENT_WORKSPACE, 'daemon-error.log');
@@ -59,10 +58,14 @@ function socketDirName() {
  * We try to create a socket file in a tmp dir, but if it doesn't work because
  * for instance we don't have permissions, we create it in DAEMON_DIR_FOR_CURRENT_WORKSPACE
  */
-function createSocketDir() {
+export function getSocketDir(alreadyUnique = false) {
   try {
-    const dir = socketDirName();
+    const dir =
+      process.env.NX_SOCKET_DIR ??
+      process.env.NX_DAEMON_SOCKET_DIR ??
+      (alreadyUnique ? tmpdir : socketDirName());
     ensureDirSync(dir);
+
     return dir;
   } catch (e) {
     return DAEMON_DIR_FOR_CURRENT_WORKSPACE;
@@ -71,6 +74,6 @@ function createSocketDir() {
 
 export function removeSocketDir() {
   try {
-    rmdirSync(socketDir);
+    rmSync(getSocketDir(), { recursive: true, force: true });
   } catch (e) {}
 }

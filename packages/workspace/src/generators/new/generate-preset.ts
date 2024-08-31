@@ -16,14 +16,6 @@ import * as yargsParser from 'yargs-parser';
 import { spawn, SpawnOptions } from 'child_process';
 
 export function addPresetDependencies(host: Tree, options: NormalizedSchema) {
-  if (
-    options.preset === Preset.Apps ||
-    options.preset === Preset.Core ||
-    options.preset === Preset.Empty ||
-    options.preset === Preset.NPM
-  ) {
-    return;
-  }
   const { dependencies, dev } = getPresetDependencies(options);
   return addDependenciesToPackageJson(
     host,
@@ -78,6 +70,7 @@ export function generatePreset(host: Tree, opts: NormalizedSchema) {
       opts.docker ? `--docker=${opts.docker}` : null,
       opts.js ? `--js` : null,
       opts.nextAppDir ? '--nextAppDir=true' : '--nextAppDir=false',
+      opts.nextSrcDir ? '--nextSrcDir=true' : '--nextSrcDir=false',
       opts.packageManager ? `--packageManager=${opts.packageManager}` : null,
       opts.standaloneApi !== undefined
         ? `--standaloneApi=${opts.standaloneApi}`
@@ -87,6 +80,9 @@ export function generatePreset(host: Tree, opts: NormalizedSchema) {
       opts.e2eTestRunner !== undefined
         ? `--e2eTestRunner=${opts.e2eTestRunner}`
         : null,
+      opts.ssr ? `--ssr` : null,
+      opts.prefix !== undefined ? `--prefix=${opts.prefix}` : null,
+      opts.nxCloudToken ? `--nxCloudToken=${opts.nxCloudToken}` : null,
     ].filter((e) => !!e);
   }
 }
@@ -98,6 +94,8 @@ function getPresetDependencies({
   e2eTestRunner,
 }: NormalizedSchema) {
   switch (preset) {
+    case Preset.Apps:
+    case Preset.NPM:
     case Preset.TS:
     case Preset.TsStandalone:
       return { dependencies: {}, dev: { '@nx/js': nxVersion } };
@@ -105,9 +103,10 @@ function getPresetDependencies({
     case Preset.AngularMonorepo:
     case Preset.AngularStandalone:
       return {
-        dependencies: { '@nx/angular': nxVersion },
+        dependencies: {},
         dev: {
           '@angular-devkit/core': angularCliVersion,
+          '@nx/angular': nxVersion,
           typescript: typescriptVersion,
         },
       };
@@ -124,6 +123,35 @@ function getPresetDependencies({
     case Preset.NextJs:
     case Preset.NextJsStandalone:
       return { dependencies: { '@nx/next': nxVersion }, dev: {} };
+
+    case Preset.RemixStandalone:
+    case Preset.RemixMonorepo:
+      return { dependencies: { '@nx/remix': nxVersion }, dev: {} };
+
+    case Preset.VueMonorepo:
+    case Preset.VueStandalone:
+      return {
+        dependencies: {},
+        dev: {
+          '@nx/vue': nxVersion,
+          '@nx/cypress': e2eTestRunner === 'cypress' ? nxVersion : undefined,
+          '@nx/playwright':
+            e2eTestRunner === 'playwright' ? nxVersion : undefined,
+          '@nx/vite': nxVersion,
+        },
+      };
+
+    case Preset.Nuxt:
+    case Preset.NuxtStandalone:
+      return {
+        dependencies: {},
+        dev: {
+          '@nx/nuxt': nxVersion,
+          '@nx/cypress': e2eTestRunner === 'cypress' ? nxVersion : undefined,
+          '@nx/playwright':
+            e2eTestRunner === 'playwright' ? nxVersion : undefined,
+        },
+      };
 
     case Preset.ReactMonorepo:
     case Preset.ReactStandalone:

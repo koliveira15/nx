@@ -6,9 +6,13 @@ import { Task, TaskGraph } from '../config/task-graph';
 import { invokeTasksRunner } from './run-command';
 import { InvokeRunnerTerminalOutputLifeCycle } from './life-cycles/invoke-runner-terminal-output-life-cycle';
 import { performance } from 'perf_hooks';
+import { getOutputs } from './utils';
+import { loadRootEnvFiles } from '../utils/dotenv';
+import { TaskResult } from './life-cycle';
 
 export async function initTasksRunner(nxArgs: NxArgs) {
   performance.mark('init-local');
+  loadRootEnvFiles();
   workspaceConfigurationCheck();
   const nxJson = readNxJson();
   if (nxArgs.verbose) {
@@ -19,8 +23,20 @@ export async function initTasksRunner(nxArgs: NxArgs) {
     invoke: async (opts: {
       tasks: Task[];
       parallel: number;
-    }): Promise<{ status: number; taskGraph: TaskGraph }> => {
+    }): Promise<{
+      status: number;
+      taskGraph: TaskGraph;
+      taskResults: Record<string, TaskResult>;
+    }> => {
       performance.mark('code-loading:end');
+
+      // TODO: This polyfills the outputs if someone doesn't pass a task with outputs. Remove this in Nx 20
+      opts.tasks.forEach((t) => {
+        if (!t.outputs) {
+          t.outputs = getOutputs(projectGraph.nodes, t.target, t.overrides);
+        }
+      });
+
       const lifeCycle = new InvokeRunnerTerminalOutputLifeCycle(opts.tasks);
 
       const taskGraph = {
@@ -49,6 +65,7 @@ export async function initTasksRunner(nxArgs: NxArgs) {
       return {
         status,
         taskGraph,
+        taskResults: lifeCycle.getTaskResults(),
       };
     },
   };

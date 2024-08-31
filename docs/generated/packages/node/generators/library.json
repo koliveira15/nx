@@ -2,7 +2,7 @@
   "name": "library",
   "factory": "./src/generators/library/library#libraryGeneratorInternal",
   "schema": {
-    "$schema": "http://json-schema.org/schema",
+    "$schema": "https://json-schema.org/schema",
     "cli": "nx",
     "$id": "NxNodeLibrary",
     "title": "Create a Node Library for Nx",
@@ -25,7 +25,8 @@
       "directory": {
         "type": "string",
         "description": "A directory where the lib is placed",
-        "alias": "dir"
+        "alias": "dir",
+        "x-priority": "important"
       },
       "projectNameAndRootFormat": {
         "description": "Whether to generate the project name and root directory as provided (`as-provided`) or generate them composing their values and taking the configured layout into account (`derived`).",

@@ -1,7 +1,7 @@
 # Using Tailwind CSS with Angular projects
 
 The purpose of this page is to cover how to use and configure [Tailwind CSS](https://tailwindcss.com/)
-with [Angular](https://angular.io/) projects. It shows the different options available to set it up in existing projects
+with [Angular](https://angular.dev/) projects. It shows the different options available to set it up in existing projects
 or new projects, and it also contains a set of our recommended setups for using Tailwind CSS in different scenarios that
 can be found on an Nx workspace.
 
@@ -34,7 +34,7 @@ To add Tailwind CSS to an existing Angular application, buildable library or pub
 npx nx g @nx/angular:setup-tailwind my-project
 ```
 
-You can see the available options for the above generator in [its docs](/packages/angular/generators/setup-tailwind).
+You can see the available options for the above generator in [its docs](/nx-api/angular/generators/setup-tailwind).
 
 ## Configuring the content sources for a project and its dependencies
 

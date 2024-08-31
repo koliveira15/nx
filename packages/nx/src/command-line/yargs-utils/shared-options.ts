@@ -1,15 +1,46 @@
-import { Argv } from 'yargs';
+import { Argv, ParserConfigurationOptions } from 'yargs';
 
-export function withExcludeOption(yargs: Argv) {
+interface ExcludeOptions {
+  exclude: string[];
+}
+
+export const defaultYargsParserConfiguration: Partial<ParserConfigurationOptions> =
+  {
+    'strip-dashed': true,
+    'unknown-options-as-args': true,
+    'populate--': true,
+    'parse-numbers': false,
+    'parse-positional-numbers': false,
+  };
+
+export function withExcludeOption(yargs: Argv): Argv<ExcludeOptions> {
   return yargs.option('exclude', {
     describe: 'Exclude certain projects from being processed',
     type: 'string',
     coerce: parseCSV,
-  });
+  }) as any;
 }
 
-export function withRunOptions(yargs: Argv) {
-  return withExcludeOption(yargs)
+export interface RunOptions {
+  exclude: string;
+  parallel: string;
+  maxParallel: number;
+  runner: string;
+  prod: boolean;
+  graph: string;
+  verbose: boolean;
+  nxBail: boolean;
+  nxIgnoreCycles: boolean;
+  skipNxCache: boolean;
+  cloud: boolean;
+  dte: boolean;
+  batch: boolean;
+  useAgents: boolean;
+  excludeTaskDependencies: boolean;
+}
+
+export function withRunOptions<T>(yargs: Argv<T>): Argv<T & RunOptions> {
+  return withVerbose(withExcludeOption(yargs))
     .option('parallel', {
       describe: 'Max number of parallel processes [default is 3]',
       type: 'string',
@@ -31,7 +62,7 @@ export function withRunOptions(yargs: Argv) {
     .option('graph', {
       type: 'string',
       describe:
-        'Show the task graph of the command. Pass a file path to save the graph data instead of viewing it in the browser.',
+        'Show the task graph of the command. Pass a file path to save the graph data instead of viewing it in the browser. Pass "stdout" to print the results to the terminal.',
       coerce: (value) =>
         // when the type of an opt is "string", passing `--opt` comes through as having an empty string value.
         // this coercion allows `--graph` to be passed through as a boolean directly, and also normalizes the
@@ -42,24 +73,24 @@ export function withRunOptions(yargs: Argv) {
           ? false
           : value,
     })
-    .option('verbose', {
-      type: 'boolean',
-      describe:
-        'Prints additional information about the commands (e.g., stack traces)',
-    })
-    .option('nx-bail', {
+    .option('nxBail', {
       describe: 'Stop command execution after the first failed task',
       type: 'boolean',
       default: false,
     })
-    .option('nx-ignore-cycles', {
+    .option('nxIgnoreCycles', {
       describe: 'Ignore cycles in the task graph',
       type: 'boolean',
       default: false,
     })
-    .options('skip-nx-cache', {
+    .options('skipNxCache', {
       describe:
         'Rerun the tasks even when the results are available in the cache',
+      type: 'boolean',
+      default: false,
+    })
+    .options('excludeTaskDependencies', {
+      describe: 'Skips running dependent tasks first',
       type: 'boolean',
       default: false,
     })
@@ -70,7 +101,12 @@ export function withRunOptions(yargs: Argv) {
     .options('dte', {
       type: 'boolean',
       hidden: true,
-    });
+    })
+    .options('useAgents', {
+      type: 'boolean',
+      hidden: true,
+      alias: 'agents',
+    }) as Argv<Omit<RunOptions, 'exclude' | 'batch'>> as any;
 }
 
 export function withTargetAndConfigurationOption(
@@ -97,13 +133,34 @@ export function withConfiguration(yargs: Argv) {
   });
 }
 
+export function withVerbose<T>(yargs: Argv<T>) {
+  return yargs
+    .option('verbose', {
+      describe:
+        'Prints additional information about the commands (e.g., stack traces)',
+      type: 'boolean',
+    })
+    .middleware((args) => {
+      args.verbose ??= process.env.NX_VERBOSE_LOGGING === 'true';
+      // If NX_VERBOSE_LOGGING=false and --verbose is passed, we want to set it to true favoring the arg
+      process.env.NX_VERBOSE_LOGGING = args.verbose.toString();
+    });
+}
+
+export function withBatch(yargs: Argv) {
+  return yargs.options('batch', {
+    type: 'boolean',
+    describe: 'Run task(s) in batches for executors which support batches',
+    coerce: (v) => {
+      return v || process.env.NX_BATCH_MODE === 'true';
+    },
+    default: false,
+  }) as any;
+}
+
 export function withAffectedOptions(yargs: Argv) {
   return withExcludeOption(yargs)
-    .parserConfiguration({
-      'strip-dashed': true,
-      'unknown-options-as-args': true,
-      'populate--': true,
-    })
+    .parserConfiguration(defaultYargsParserConfiguration)
     .option('files', {
       describe:
         'Change the way Nx is calculating the affected command by providing directly changed files, list of files delimited by commas or spaces',
@@ -146,13 +203,19 @@ export function withAffectedOptions(yargs: Argv) {
     });
 }
 
-export function withRunManyOptions(yargs: Argv) {
+export interface RunManyOptions extends RunOptions {
+  projects: string[];
+  /**
+   * @deprecated This is deprecated
+   */
+  all: boolean;
+}
+
+export function withRunManyOptions<T>(
+  yargs: Argv<T>
+): Argv<T & RunManyOptions> {
   return withRunOptions(yargs)
-    .parserConfiguration({
-      'strip-dashed': true,
-      'unknown-options-as-args': true,
-      'populate--': true,
-    })
+    .parserConfiguration(defaultYargsParserConfiguration)
     .option('projects', {
       type: 'string',
       alias: 'p',
@@ -165,81 +228,48 @@ export function withRunManyOptions(yargs: Argv) {
         '[deprecated] `run-many` runs all targets on all projects in the workspace if no projects are provided. This option is no longer required.',
       type: 'boolean',
       default: true,
-    });
+    }) as Argv<T & RunManyOptions>;
 }
 
-export function withOverrides(args: any): any {
-  args.__overrides_unparsed__ = (args['--'] ?? args._.slice(1)).map((v) =>
-    v.toString()
+export function withOverrides<T extends { _: Array<string | number> }>(
+  args: T,
+  commandLevel: number = 1
+): T & { __overrides_unparsed__: string[] } {
+  const unparsedArgs: string[] = (args['--'] ?? args._.slice(commandLevel)).map(
+    (v) => v.toString()
   );
   delete args['--'];
   delete args._;
-  return args;
+  return {
+    ...args,
+    __overrides_unparsed__: unparsedArgs,
+  };
 }
+
+const allOutputStyles = [
+  'dynamic',
+  'static',
+  'stream',
+  'stream-without-prefixes',
+  'compact',
+] as const;
+
+export type OutputStyle = (typeof allOutputStyles)[number];
 
 export function withOutputStyleOption(
   yargs: Argv,
-  choices = ['dynamic', 'static', 'stream', 'stream-without-prefixes']
+  choices: ReadonlyArray<OutputStyle> = [
+    'dynamic',
+    'static',
+    'stream',
+    'stream-without-prefixes',
+  ]
 ) {
   return yargs.option('output-style', {
-    describe: 'Defines how Nx emits outputs tasks logs',
+    describe: `Defines how Nx emits outputs tasks logs. **dynamic**: use dynamic output life cycle, previous content is overwritten or modified as new outputs are added, display minimal logs by default, always show errors. This output format is recommended on your local development environments. **static**: uses static output life cycle, no previous content is rewritten or modified as new outputs are added. This output format is recommened for CI environments. **stream**: nx by default logs output to an internal output stream, enable this option to stream logs to stdout / stderr. **stream-without-prefixes**: nx prefixes the project name the target is running on, use this option remove the project name prefix from output.`,
     type: 'string',
     choices,
   });
-}
-
-export function withDepGraphOptions(yargs: Argv) {
-  return yargs
-    .option('file', {
-      describe:
-        'Output file (e.g. --file=output.json or --file=dep-graph.html)',
-      type: 'string',
-    })
-    .option('view', {
-      describe: 'Choose whether to view the projects or task graph',
-      type: 'string',
-      default: 'projects',
-      choices: ['projects', 'tasks'],
-    })
-    .option('targets', {
-      describe: 'The target to show tasks for in the task graph',
-      type: 'string',
-      coerce: parseCSV,
-    })
-    .option('focus', {
-      describe:
-        'Use to show the project graph for a particular project and every node that is either an ancestor or a descendant.',
-      type: 'string',
-    })
-    .option('exclude', {
-      describe:
-        'List of projects delimited by commas to exclude from the project graph.',
-      type: 'string',
-      coerce: parseCSV,
-    })
-
-    .option('groupByFolder', {
-      describe: 'Group projects by folder in the project graph',
-      type: 'boolean',
-    })
-    .option('host', {
-      describe: 'Bind the project graph server to a specific ip address.',
-      type: 'string',
-    })
-    .option('port', {
-      describe: 'Bind the project graph server to a specific port.',
-      type: 'number',
-    })
-    .option('watch', {
-      describe: 'Watch for changes to project graph and update in-browser',
-      type: 'boolean',
-      default: false,
-    })
-    .option('open', {
-      describe: 'Open the project graph in the browser.',
-      type: 'boolean',
-      default: true,
-    });
 }
 
 export function withRunOneOptions(yargs: Argv) {
@@ -248,19 +278,9 @@ export function withRunOneOptions(yargs: Argv) {
   );
 
   const res = withRunOptions(
-    withOutputStyleOption(withConfiguration(yargs), [
-      'dynamic',
-      'static',
-      'stream',
-      'stream-without-prefixes',
-      'compact',
-    ])
+    withOutputStyleOption(withConfiguration(yargs), allOutputStyles)
   )
-    .parserConfiguration({
-      'strip-dashed': true,
-      'unknown-options-as-args': true,
-      'populate--': true,
-    })
+    .parserConfiguration(defaultYargsParserConfiguration)
     .option('project', {
       describe: 'Target project',
       type: 'string',
@@ -279,12 +299,15 @@ export function withRunOneOptions(yargs: Argv) {
   }
 }
 
-export function parseCSV(args: string[] | string) {
+export function parseCSV(args: string[] | string): string[] {
   if (!args) {
-    return args;
+    return [];
   }
   if (Array.isArray(args)) {
-    return args;
+    // If parseCSV is used on `type: 'array'`, the first option may be something like ['a,b,c'].
+    return args.length === 1 && args[0].includes(',')
+      ? parseCSV(args[0])
+      : args;
   }
   const items = args.split(',');
   return items.map((i) =>

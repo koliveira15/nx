@@ -1,6 +1,6 @@
 import { dirname, join } from 'path';
 
-import { readPluginPackageJson } from '../../utils/nx-plugin';
+import { readPluginPackageJson } from '../../project-graph/plugins';
 import {
   CustomHasher,
   Executor,
@@ -14,6 +14,7 @@ import {
   resolveSchema,
 } from '../../config/schema-utils';
 import { getNxRequirePaths } from '../../utils/installation-directory';
+import { ProjectConfiguration } from '../../config/workspace-json-project-json';
 
 export function normalizeExecutorSchema(
   schema: Partial<ExecutorConfig['schema']>
@@ -40,7 +41,8 @@ const cachedExecutorInformation = {};
 export function getExecutorInformation(
   nodeModule: string,
   executor: string,
-  root: string
+  root: string,
+  projects: Record<string, ProjectConfiguration>
 ): ExecutorConfig & { isNgCompat: boolean; isNxExecutor: boolean } {
   try {
     const key = cacheKey(nodeModule, executor, root);
@@ -49,7 +51,8 @@ export function getExecutorInformation(
     const { executorsFilePath, executorConfig, isNgCompat } = readExecutorJson(
       nodeModule,
       executor,
-      root
+      root,
+      projects
     );
     const executorsDir = dirname(executorsFilePath);
     const schemaPath = resolveSchema(executorConfig.schema, executorsDir);
@@ -95,7 +98,9 @@ export function getExecutorInformation(
 function readExecutorJson(
   nodeModule: string,
   executor: string,
-  root: string
+  root: string,
+  projects: Record<string, ProjectConfiguration>,
+  extraRequirePaths: string[] = []
 ): {
   executorsFilePath: string;
   executorConfig: {
@@ -108,9 +113,16 @@ function readExecutorJson(
 } {
   const { json: packageJson, path: packageJsonPath } = readPluginPackageJson(
     nodeModule,
+    projects,
     root
-      ? [root, __dirname, process.cwd(), ...getNxRequirePaths()]
-      : [__dirname, process.cwd(), ...getNxRequirePaths()]
+      ? [
+          root,
+          __dirname,
+          process.cwd(),
+          ...getNxRequirePaths(),
+          ...extraRequirePaths,
+        ]
+      : [__dirname, process.cwd(), ...getNxRequirePaths(), ...extraRequirePaths]
   );
   const executorsFile = packageJson.executors ?? packageJson.builders;
 
@@ -120,20 +132,22 @@ function readExecutorJson(
     );
   }
 
-  const executorsFilePath = require.resolve(
-    join(dirname(packageJsonPath), executorsFile)
-  );
+  const basePath = dirname(packageJsonPath);
+  const executorsFilePath = require.resolve(join(basePath, executorsFile));
   const executorsJson = readJsonFile<ExecutorsJson>(executorsFilePath);
-  const executorConfig: {
-    implementation: string;
-    batchImplementation?: string;
-    schema: string;
-    hasher?: string;
-  } = executorsJson.executors?.[executor] || executorsJson.builders?.[executor];
+  const executorConfig =
+    executorsJson.executors?.[executor] || executorsJson.builders?.[executor];
   if (!executorConfig) {
     throw new Error(
       `Cannot find executor '${executor}' in ${executorsFilePath}.`
     );
+  }
+  if (typeof executorConfig === 'string') {
+    // Angular CLI can have a builder pointing to another package:builder
+    const [packageName, executorName] = executorConfig.split(':');
+    return readExecutorJson(packageName, executorName, root, projects, [
+      basePath,
+    ]);
   }
   const isNgCompat = !executorsJson.executors?.[executor];
   return { executorsFilePath, executorConfig, isNgCompat };

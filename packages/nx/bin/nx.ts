@@ -4,8 +4,7 @@ import {
   WorkspaceTypeAndRoot,
 } from '../src/utils/find-workspace-root';
 import * as chalk from 'chalk';
-import { config as loadDotEnvFile } from 'dotenv';
-import { expand } from 'dotenv-expand';
+import { loadRootEnvFiles } from '../src/utils/dotenv';
 import { initLocal } from './init-local';
 import { output } from '../src/utils/output';
 import {
@@ -19,20 +18,27 @@ import { execSync } from 'child_process';
 import { join } from 'path';
 import { assertSupportedPlatform } from '../src/native/assert-supported-platform';
 import { performance } from 'perf_hooks';
+import { setupWorkspaceContext } from '../src/utils/workspace-context';
+import { daemonClient } from '../src/daemon/client/client';
 
 function main() {
   if (
     process.argv[2] !== 'report' &&
     process.argv[2] !== '--version' &&
-    process.argv[2] !== '--help'
+    process.argv[2] !== '--help' &&
+    process.argv[2] !== 'reset'
   ) {
     assertSupportedPlatform();
   }
 
   require('nx/src/utils/perf-logging');
 
+  const workspace = findWorkspaceRoot(process.cwd());
+
   performance.mark('loading dotenv files:start');
-  loadDotEnvFiles();
+  if (workspace) {
+    loadRootEnvFiles(workspace.dir);
+  }
   performance.mark('loading dotenv files:end');
   performance.measure(
     'loading dotenv files',
@@ -40,7 +46,6 @@ function main() {
     'loading dotenv files:end'
   );
 
-  const workspace = findWorkspaceRoot(process.cwd());
   // new is a special case because there is no local workspace to load
   if (
     process.argv[2] === 'new' ||
@@ -51,9 +56,10 @@ function main() {
     process.env.NX_DAEMON = 'false';
     require('nx/src/command-line/nx-commands').commandsObject.argv;
   } else {
-    if (workspace && workspace.type === 'nx') {
-      require('v8-compile-cache');
+    if (!daemonClient.enabled() && workspace !== null) {
+      setupWorkspaceContext(workspace.dir);
     }
+
     // polyfill rxjs observable to avoid issues with multiple version of Observable installed in node_modules
     // https://twitter.com/BenLesh/status/1192478226385428483?s=20
     if (!(Symbol as any).observable)
@@ -99,21 +105,6 @@ function main() {
         require(localNx);
       }
     }
-  }
-}
-
-/**
- * This loads dotenv files from:
- * - .env
- * - .local.env
- * - .env.local
- */
-function loadDotEnvFiles() {
-  for (const file of ['.local.env', '.env.local', '.env']) {
-    const myEnv = loadDotEnvFile({
-      path: file,
-    });
-    expand(myEnv);
   }
 }
 
@@ -183,6 +174,7 @@ function resolveNx(workspace: WorkspaceTypeAndRoot | null) {
   } catch {
     // TODO(v17): Remove this
     // fallback for old CLI install setup
+    // nx-ignore-next-line
     return require.resolve('@nrwl/cli/bin/nx.js', {
       paths: [workspace ? workspace.dir : globalsRoot],
     });
@@ -227,7 +219,7 @@ function warnIfUsingOutdatedGlobalInstall(
       'For more information, see https://nx.dev/more-concepts/global-nx'
     );
     output.warn({
-      title: `Its time to update Nx 🎉`,
+      title: `It's time to update Nx 🎉`,
       bodyLines,
     });
   }

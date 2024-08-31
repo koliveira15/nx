@@ -1,10 +1,19 @@
+import { type JSX, memo } from 'react';
 import {
-  XCircleIcon,
   ExclamationTriangleIcon,
+  XCircleIcon,
 } from '@heroicons/react/24/outline';
+import Link from 'next/link';
 
-export function ErrorMessage({ error }: { error: any }): JSX.Element {
-  if (error.data.no_results) {
+function ErrorMessage({ error }: { error: any }): JSX.Element {
+  try {
+    if (error.message) {
+      error = JSON.parse(error.message);
+      console.error('Error: ', error);
+    }
+  } catch (e) {}
+
+  if (error?.data?.no_results) {
     return (
       <div className="rounded-md bg-yellow-50 p-4">
         <div className="flex">
@@ -20,12 +29,12 @@ export function ErrorMessage({ error }: { error: any }): JSX.Element {
             </h3>
             <div className="mt-2 text-sm text-yellow-700">
               Sorry, I don't know how to help with that. You can visit the{' '}
-              <a
+              <Link
                 href="https://nx.dev/getting-started/intro"
                 className="underline"
               >
                 Nx documentation
-              </a>{' '}
+              </Link>{' '}
               for more info.
             </div>
           </div>
@@ -50,3 +59,6 @@ export function ErrorMessage({ error }: { error: any }): JSX.Element {
     );
   }
 }
+
+const MemoErrorMessage = memo(ErrorMessage);
+export { MemoErrorMessage as ErrorMessage };

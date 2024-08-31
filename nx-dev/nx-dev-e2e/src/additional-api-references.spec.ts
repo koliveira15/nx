@@ -16,28 +16,10 @@ const pages: Array<{ title: string; path: string }> = [
   { title: 'migrate', path: '/cli/migrate' },
   { title: 'report', path: '/cli/report' },
   { title: 'list', path: '/cli/list' },
-  { title: 'workspace-lint', path: '/cli/workspace-lint' },
-  { title: 'workspace-generator', path: '/cli/workspace-generator' },
   { title: 'connect', path: '/cli/connect-to-nx-cloud' },
   { title: 'reset', path: '/cli/reset' },
   { title: 'Storybook', path: '/storybook/overview-react' },
   { title: 'Storybook', path: '/storybook/overview-angular' },
-  {
-    title: 'Nx React Storybook Addon',
-    path: '/storybook/migrate-webpack-final-react',
-  },
-  {
-    title: 'Storybook Migration to webpackFinal',
-    path: '/storybook/migrate-webpack-final-angular',
-  },
-  {
-    title: 'Upgrading to Storybook 6 (and Nx versions >10.1.x and <14.0.0)',
-    path: '/storybook/upgrade-storybook-v6-react',
-  },
-  {
-    title: 'Upgrading to Storybook 6 (and Nx versions >10.1.x and <14.0.0)',
-    path: '/storybook/upgrade-storybook-v6-angular',
-  },
   {
     title: 'Setting up Storybook Composition with Nx',
     path: '/storybook/storybook-composition-setup',

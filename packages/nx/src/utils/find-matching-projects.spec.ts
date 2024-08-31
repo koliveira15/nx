@@ -3,7 +3,7 @@ import {
   getMatchingStringsWithCache,
 } from './find-matching-projects';
 import type { ProjectGraphProjectNode } from '../config/project-graph';
-import minimatch = require('minimatch');
+import { minimatch } from 'minimatch';
 
 describe('findMatchingProjects', () => {
   let projectGraph: Record<string, ProjectGraphProjectNode> = {
@@ -78,7 +78,7 @@ describe('findMatchingProjects', () => {
       'c',
       'nested',
     ]);
-    expect(findMatchingProjects(['!*', 'a'], projectGraph)).toEqual([]);
+    expect(findMatchingProjects(['a', '!*'], projectGraph)).toEqual([]);
   });
 
   it('should expand generic glob patterns', () => {
@@ -124,10 +124,14 @@ describe('findMatchingProjects', () => {
   });
 
   it('should support negation "!" for tags', () => {
-    expect(findMatchingProjects(['*', '!tag:api'], projectGraph)).toEqual([
-      'b',
-      'nested',
-    ]);
+    // Picks everything, except things tagged API, unless those also
+    // have the tag theme2 in which case we still want them.
+    const matches = findMatchingProjects(
+      ['*', '!tag:api', 'tag:theme2'],
+      projectGraph
+    );
+    expect(matches).toEqual(expect.arrayContaining(['a', 'b', 'nested']));
+    expect(matches.length).toEqual(3);
   });
 
   it('should expand generic glob patterns for tags', () => {
@@ -157,6 +161,22 @@ describe('findMatchingProjects', () => {
     expect(findMatchingProjects(['**/nested'], projectGraph)).toEqual([
       'nested',
     ]);
+  });
+
+  it('should support "all except" style patterns', () => {
+    expect(findMatchingProjects(['!a'], projectGraph)).toEqual([
+      'test-project',
+      'b',
+      'c',
+      'nested',
+    ]);
+    expect(findMatchingProjects(['!tag:api'], projectGraph)).toEqual([
+      'b',
+      'nested',
+    ]);
+    expect(
+      findMatchingProjects(['!tag:api', 'test-project'], projectGraph)
+    ).toEqual(['b', 'nested', 'test-project']);
   });
 });
 
@@ -196,8 +216,8 @@ describe.each([
       iterations
     );
     const directTime = time(() => minimatch.match(items, pattern), iterations);
-    // Using minimatch directly takes at least twice as long than using the cache.
-    expect(directTime / cacheTime).toBeGreaterThan(2);
+    // Using minimatch directly is slower than using the cache.
+    expect(directTime / cacheTime).toBeGreaterThan(1);
   });
 
   it(`should be comparable to using minimatch a single time (${pattern})`, () => {

@@ -1,5 +1,5 @@
 {
-  "$schema": "http://json-schema.org/schema",
+  "$schema": "https://json-schema.org/schema",
   "$id": "GeneratorNxApp",
   "title": "Creates an Angular application.",
   "description": "Creates an Angular application.",
@@ -41,24 +41,23 @@
           },
           {
             "value": "scss",
-            "label": "SASS(.scss)  [ http://sass-lang.com   ]"
+            "label": "SASS(.scss)  [ https://sass-lang.com   ]"
           },
           {
             "value": "sass",
-            "label": "SASS(.sass)  [ http://sass-lang.com   ]"
+            "label": "SASS(.sass)  [ https://sass-lang.com   ]"
           },
           {
             "value": "less",
-            "label": "LESS         [ http://lesscss.org     ]"
+            "label": "LESS         [ https://lesscss.org     ]"
           }
         ]
       }
     },
     "routing": {
       "type": "boolean",
-      "description": "Generate a routing module.",
-      "default": false,
-      "x-prompt": "Would you like to configure routing for this application?",
+      "description": "Enable routing for the application.",
+      "default": true,
       "x-priority": "important"
     },
     "inlineStyle": {
@@ -82,6 +81,7 @@
       "type": "string",
       "format": "html-selector",
       "description": "The prefix to apply to generated selectors.",
+      "default": "app",
       "alias": "p"
     },
     "skipTests": {
@@ -110,10 +110,10 @@
     },
     "e2eTestRunner": {
       "type": "string",
-      "enum": ["cypress", "playwright", "none"],
+      "enum": ["playwright", "cypress", "none"],
       "description": "Test runner to use for end to end (E2E) tests.",
       "x-prompt": "Which E2E test runner would you like to use?",
-      "default": "cypress"
+      "default": "playwright"
     },
     "tags": {
       "type": "string",
@@ -155,8 +155,9 @@
       "default": false
     },
     "standalone": {
-      "description": "Generate an application that is setup to use standalone components. _Note: This is only supported in Angular versions >= 14.1.0_",
+      "description": "Generate an application that is setup to use standalone components.",
       "type": "boolean",
+      "default": true,
       "x-priority": "important"
     },
     "rootProject": {
@@ -172,10 +173,17 @@
       "default": false
     },
     "bundler": {
-      "description": "Bundler to use to build the application.",
+      "description": "Bundler to use to build the application. It defaults to `esbuild` for Angular versions >= 17.0.0. Otherwise, it defaults to `webpack`. _Note: The `esbuild` bundler is only considered stable from Angular v17._",
       "type": "string",
       "enum": ["webpack", "esbuild"],
-      "default": "webpack"
+      "x-prompt": "Which bundler do you want to use to build the application?",
+      "x-priority": "important"
+    },
+    "ssr": {
+      "description": "Creates an application with Server-Side Rendering (SSR) and Static Site Generation (SSG/Prerendering) enabled.",
+      "type": "boolean",
+      "x-prompt": "Do you want to enable Server-Side Rendering (SSR) and Static Site Generation (SSG/Prerendering)?",
+      "default": false
     }
   },
   "additionalProperties": false,

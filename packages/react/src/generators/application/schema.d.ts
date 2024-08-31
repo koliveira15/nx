@@ -1,5 +1,5 @@
 import type { ProjectNameAndRootFormat } from '@nx/devkit/src/generators/project-name-and-root-utils';
-import type { Linter } from '@nx/linter';
+import type { Linter, LinterType } from '@nx/eslint';
 import type { SupportedStyles } from '../../../typings/style';
 
 export interface Schema {
@@ -12,7 +12,7 @@ export interface Schema {
   unitTestRunner?: 'jest' | 'vitest' | 'none';
   inSourceTests?: boolean;
   e2eTestRunner: 'cypress' | 'playwright' | 'none';
-  linter: Linter;
+  linter: Linter | LinterType;
   pascalCaseFiles?: boolean;
   classComponent?: boolean;
   routing?: boolean;
@@ -28,6 +28,8 @@ export interface Schema {
   rootProject?: boolean;
   bundler?: 'webpack' | 'vite' | 'rspack';
   minimal?: boolean;
+  addPlugin?: boolean;
+  nxCloudToken?: string;
 }
 
 export interface NormalizedSchema<T extends Schema = Schema> extends T {
@@ -40,4 +42,5 @@ export interface NormalizedSchema<T extends Schema = Schema> extends T {
   styledModule: null | SupportedStyles;
   hasStyles: boolean;
   unitTestRunner: 'jest' | 'vitest' | 'none';
+  addPlugin?: boolean;
 }

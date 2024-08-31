@@ -1,16 +1,15 @@
 import {
-  addDependenciesToPackageJson,
+  formatFiles,
   getPackageManagerCommand,
   installPackagesTask,
   joinPathFragments,
-  names,
   PackageManager,
   Tree,
 } from '@nx/devkit';
 
 import { join } from 'path';
 import { Preset } from '../utils/presets';
-import { Linter } from '../../utils/lint';
+import { Linter, LinterType } from '../../utils/lint';
 import { generateWorkspaceFiles } from './generate-workspace-files';
 import { addPresetDependencies, generatePreset } from './generate-preset';
 import { execSync } from 'child_process';
@@ -21,51 +20,61 @@ interface Schema {
   appName?: string;
   skipInstall?: boolean;
   style?: string;
-  nxCloud?: boolean;
   preset: string;
   defaultBase: string;
   framework?: string;
   docker?: boolean;
   js?: boolean;
   nextAppDir?: boolean;
-  linter?: Linter;
+  nextSrcDir?: boolean;
+  linter?: Linter | LinterType;
   bundler?: 'vite' | 'webpack';
   standaloneApi?: boolean;
   routing?: boolean;
   packageManager?: PackageManager;
   e2eTestRunner?: 'cypress' | 'playwright' | 'detox' | 'jest' | 'none';
+  ssr?: boolean;
+  prefix?: string;
+  useGitHub?: boolean;
+  nxCloud?: 'yes' | 'skip' | 'circleci' | 'github';
 }
 
 export interface NormalizedSchema extends Schema {
   presetVersion?: string;
   isCustomPreset: boolean;
+  nxCloudToken?: string;
 }
 
-export async function newGenerator(host: Tree, opts: Schema) {
+export async function newGenerator(tree: Tree, opts: Schema) {
   const options = normalizeOptions(opts);
-  validateOptions(options, host);
+  validateOptions(options, tree);
 
-  await generateWorkspaceFiles(host, { ...options, nxCloud: undefined } as any);
+  options.nxCloudToken = await generateWorkspaceFiles(tree, options);
 
-  addPresetDependencies(host, options);
-  addCloudDependencies(host, options);
+  addPresetDependencies(tree, options);
+
+  await formatFiles(tree);
 
   return async () => {
-    const pmc = getPackageManagerCommand(options.packageManager);
-    if (pmc.preInstall) {
-      execSync(pmc.preInstall, {
-        cwd: joinPathFragments(host.root, options.directory),
-        stdio: process.env.NX_GENERATE_QUIET === 'true' ? 'ignore' : 'inherit',
-      });
+    if (!options.skipInstall) {
+      const pmc = getPackageManagerCommand(options.packageManager);
+      if (pmc.preInstall) {
+        execSync(pmc.preInstall, {
+          cwd: joinPathFragments(tree.root, options.directory),
+          stdio:
+            process.env.NX_GENERATE_QUIET === 'true' ? 'ignore' : 'inherit',
+        });
+      }
+      installPackagesTask(
+        tree,
+        false,
+        options.directory,
+        options.packageManager
+      );
     }
-    installPackagesTask(host, false, options.directory, options.packageManager);
     // TODO: move all of these into create-nx-workspace
-    if (
-      options.preset !== Preset.NPM &&
-      options.preset !== Preset.Core &&
-      !options.isCustomPreset
-    ) {
-      await generatePreset(host, options);
+    if (options.preset !== Preset.NPM && !options.isCustomPreset) {
+      await generatePreset(tree, options);
     }
   };
 }
@@ -76,15 +85,10 @@ function validateOptions(options: Schema, host: Tree) {
   if (
     options.skipInstall &&
     options.preset !== Preset.Apps &&
-    options.preset !== Preset.Core &&
     options.preset !== Preset.TS &&
-    options.preset !== Preset.Empty &&
     options.preset !== Preset.NPM
   ) {
     throw new Error(`Cannot select a preset when skipInstall is set to true.`);
-  }
-  if (options.skipInstall && options.nxCloud) {
-    throw new Error(`Cannot select nxCloud when skipInstall is set to true.`);
   }
 
   if (
@@ -132,7 +136,6 @@ function normalizeOptions(options: Schema): NormalizedSchema {
     ...options,
   };
 
-  normalized.name = names(options.name).fileName;
   if (!options.directory) {
     normalized.directory = normalized.name;
   }
@@ -148,15 +151,4 @@ function normalizeOptions(options: Schema): NormalizedSchema {
   );
 
   return normalized as NormalizedSchema;
-}
-
-function addCloudDependencies(host: Tree, options: Schema) {
-  if (options.nxCloud) {
-    return addDependenciesToPackageJson(
-      host,
-      {},
-      { 'nx-cloud': 'latest' },
-      join(options.directory, 'package.json')
-    );
-  }
 }

@@ -6,10 +6,10 @@ type Compiler = 'babel' | 'swc';
 export interface EsBuildExecutorOptions {
   additionalEntryPoints?: string[];
   assets: (AssetGlob | string)[];
-  buildableProjectDepsInPackageJsonType?: 'dependencies' | 'peerDependencies';
   bundle?: boolean;
+  declaration?: boolean;
+  declarationRootDir?: string;
   deleteOutputPath?: boolean;
-  dependenciesFieldType?: boolean;
   esbuildOptions?: Record<string, any>;
   esbuildConfig?: string;
   external?: string[];

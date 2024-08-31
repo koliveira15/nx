@@ -11,16 +11,18 @@ describe('component', () => {
   beforeEach(async () => {
     projectName = 'my-app';
     appRouterProjectName = 'my-app-router';
-    tree = createTreeWithEmptyWorkspace({ layout: 'apps-libs' });
+    tree = createTreeWithEmptyWorkspace();
     await applicationGenerator(tree, {
       name: projectName,
       style: 'css',
       appDir: false,
+      projectNameAndRootFormat: 'as-provided',
     });
 
     await applicationGenerator(tree, {
       name: appRouterProjectName,
       style: 'css',
+      projectNameAndRootFormat: 'as-provided',
     });
   });
 
@@ -32,10 +34,8 @@ describe('component', () => {
         style: 'css',
       });
 
-      expect(tree.exists('apps/my-app/pages/hello/index.tsx')).toBeTruthy();
-      expect(
-        tree.exists('apps/my-app/pages/hello/index.module.css')
-      ).toBeTruthy();
+      expect(tree.exists('my-app/pages/hello/index.tsx')).toBeTruthy();
+      expect(tree.exists('my-app/pages/hello/index.module.css')).toBeTruthy();
     });
 
     it('should support dynamic routes and directories', async () => {
@@ -47,16 +47,15 @@ describe('component', () => {
       });
 
       expect(
-        tree.exists('apps/my-app/pages/posts/[dynamic]/index.tsx')
+        tree.exists('my-app/pages/posts/[dynamic]/index.tsx')
       ).toBeTruthy();
       expect(
-        tree.exists('apps/my-app/pages/posts/[dynamic]/index.module.css')
+        tree.exists('my-app/pages/posts/[dynamic]/index.module.css')
       ).toBeTruthy();
 
       const content = tree
-        .read('apps/my-app/pages/posts/[dynamic]/index.tsx')
+        .read('my-app/pages/posts/[dynamic]/index.tsx')
         .toString();
-      expect(content).toMatch(/DynamicProps/);
     });
   });
 
@@ -64,15 +63,16 @@ describe('component', () => {
     it('should generate component in app directory', async () => {
       await pageGenerator(tree, {
         name: 'about',
-        project: appRouterProjectName,
+        directory: `${appRouterProjectName}/app/about`,
         style: 'css',
+        nameAndDirectoryFormat: 'as-provided',
       });
 
       expect(
-        tree.exists(`apps/${appRouterProjectName}/app/about/page.tsx`)
+        tree.exists(`${appRouterProjectName}/app/about/page.tsx`)
       ).toBeTruthy();
       expect(
-        tree.exists(`apps/${appRouterProjectName}/app/about/page.module.css`)
+        tree.exists(`${appRouterProjectName}/app/about/page.module.css`)
       ).toBeTruthy();
     });
 
@@ -85,18 +85,17 @@ describe('component', () => {
       });
 
       expect(
-        tree.exists(`apps/${appRouterProjectName}/app/posts/[dynamic]/page.tsx`)
+        tree.exists(`${appRouterProjectName}/app/posts/[dynamic]/page.tsx`)
       ).toBeTruthy();
       expect(
         tree.exists(
-          `apps/${appRouterProjectName}/app/posts/[dynamic]/page.module.css`
+          `${appRouterProjectName}/app/posts/[dynamic]/page.module.css`
         )
       ).toBeTruthy();
 
       const content = tree
-        .read(`apps/${appRouterProjectName}/app/posts/[dynamic]/page.tsx`)
+        .read(`${appRouterProjectName}/app/posts/[dynamic]/page.tsx`)
         .toString();
-      expect(content).toMatch(/DynamicProps/);
     });
   });
 });

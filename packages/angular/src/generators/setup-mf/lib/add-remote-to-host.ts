@@ -6,13 +6,19 @@ import {
   Tree,
   updateJson,
 } from '@nx/devkit';
-import type { Schema } from '../schema';
 import { ArrayLiteralExpression } from 'typescript';
 import { insertImport } from '@nx/js';
 import { addRoute } from '../../../utils/nx-devkit/route-utils';
 import { ensureTypescript } from '@nx/js/src/utils/typescript/ensure-typescript';
 
 let tsModule: typeof import('typescript');
+
+export type AddRemoteOptions = {
+  host: string;
+  appName: string;
+  standalone: boolean;
+  port: number;
+};
 
 export function checkIsCommaNeeded(mfRemoteText: string) {
   const remoteText = mfRemoteText.replace(/\s+/g, '');
@@ -23,62 +29,66 @@ export function checkIsCommaNeeded(mfRemoteText: string) {
     : false;
 }
 
-export function addRemoteToHost(tree: Tree, options: Schema) {
+export function addRemoteToHost(tree: Tree, options: AddRemoteOptions) {
   if (options.host) {
     const hostProject = readProjectConfiguration(tree, options.host);
-    const pathToMFManifest = joinPathFragments(
-      hostProject.sourceRoot,
-      'assets/module-federation.manifest.json'
-    );
-    const hostFederationType = determineHostFederationType(
-      tree,
-      pathToMFManifest
+    const pathToMFManifest = getDynamicManifestFile(tree, hostProject);
+    const hostFederationType = !!pathToMFManifest ? 'dynamic' : 'static';
+
+    const isHostUsingTypescriptConfig = tree.exists(
+      joinPathFragments(hostProject.root, 'module-federation.config.ts')
     );
 
     if (hostFederationType === 'static') {
-      addRemoteToStaticHost(tree, options, hostProject);
+      addRemoteToStaticHost(
+        tree,
+        options,
+        hostProject,
+        isHostUsingTypescriptConfig
+      );
     } else if (hostFederationType === 'dynamic') {
       addRemoteToDynamicHost(tree, options, pathToMFManifest);
     }
-
-    const declarationFilePath = joinPathFragments(
-      hostProject.sourceRoot,
-      'remotes.d.ts'
-    );
-
-    const declarationFileContent =
-      (tree.exists(declarationFilePath)
-        ? tree.read(declarationFilePath, 'utf-8')
-        : '') +
-      `\ndeclare module '${options.appName}/${
-        options.standalone ? `Routes` : `Module`
-      }';`;
-    tree.write(declarationFilePath, declarationFileContent);
 
     addLazyLoadedRouteToHostAppModule(tree, options, hostFederationType);
   }
 }
 
-function determineHostFederationType(
+function getDynamicManifestFile(
   tree: Tree,
-  pathToMfManifest: string
-): 'dynamic' | 'static' {
-  return tree.exists(pathToMfManifest) ? 'dynamic' : 'static';
+  project: ProjectConfiguration
+): string | undefined {
+  // {sourceRoot}/assets/module-federation.manifest.json was the generated
+  // path for the manifest file in the past. We now generate the manifest
+  // file at {root}/public/module-federation.manifest.json. This check
+  // ensures that we can still support the old path for backwards
+  // compatibility since old projects may still have the manifest file
+  // at the old path.
+  return [
+    joinPathFragments(project.root, 'public/module-federation.manifest.json'),
+    joinPathFragments(
+      project.sourceRoot,
+      'assets/module-federation.manifest.json'
+    ),
+  ].find((path) => tree.exists(path));
 }
 
 function addRemoteToStaticHost(
   tree: Tree,
-  options: Schema,
-  hostProject: ProjectConfiguration
+  options: AddRemoteOptions,
+  hostProject: ProjectConfiguration,
+  isHostUsingTypescript: boolean
 ) {
   const hostMFConfigPath = joinPathFragments(
     hostProject.root,
-    'module-federation.config.js'
+    isHostUsingTypescript
+      ? 'module-federation.config.ts'
+      : 'module-federation.config.js'
   );
 
   if (!hostMFConfigPath || !tree.exists(hostMFConfigPath)) {
     throw new Error(
-      `The selected host application, ${options.host}, does not contain a module-federation.config.js or module-federation.manifest.json file. Are you sure it has been set up as a host application?`
+      `The selected host application, ${options.host}, does not contain a module-federation.config.{ts,js} or module-federation.manifest.json file. Are you sure it has been set up as a host application?`
     );
   }
 
@@ -87,7 +97,7 @@ function addRemoteToStaticHost(
   const webpackAst = tsquery.ast(hostMFConfig);
   const mfRemotesNode = tsquery(
     webpackAst,
-    'Identifier[name=remotes] ~ ArrayLiteralExpression',
+    'ObjectLiteralExpression > PropertyAssignment:has(Identifier[name=remotes]) > ArrayLiteralExpression',
     { visitAllChildren: true }
   )[0] as ArrayLiteralExpression;
 
@@ -103,7 +113,7 @@ function addRemoteToStaticHost(
 
 function addRemoteToDynamicHost(
   tree: Tree,
-  options: Schema,
+  options: AddRemoteOptions,
   pathToMfManifest: string
 ) {
   updateJson(tree, pathToMfManifest, (manifest) => {
@@ -117,7 +127,7 @@ function addRemoteToDynamicHost(
 // TODO(colum): future work: allow dev to pass to path to routing module
 function addLazyLoadedRouteToHostAppModule(
   tree: Tree,
-  options: Schema,
+  options: AddRemoteOptions,
   hostFederationType: 'dynamic' | 'static'
 ) {
   if (!tsModule) {
@@ -181,7 +191,7 @@ function addLazyLoadedRouteToHostAppModule(
     const newAppComponent = `${appComponent.slice(
       0,
       indexOfClosingMenuTag
-    )}<li><a routerLink='${options.appName}'>${
+    )}<li><a routerLink="${options.appName}">${
       names(options.appName).className
     }</a></li>\n${appComponent.slice(indexOfClosingMenuTag)}`;
     tree.write(pathToAppComponentTemplate, newAppComponent);
