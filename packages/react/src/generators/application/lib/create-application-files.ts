@@ -40,6 +40,7 @@ export async function createApplicationFiles(
   } else {
     styleSolutionSpecificAppFiles = '../files/style-css-module';
   }
+  const hasStyleFile = ['scss', 'css', 'less'].includes(options.style);
 
   const onBoardingStatus = await createNxCloudOnboardingURLForWelcomeApp(
     host,
@@ -63,6 +64,8 @@ export async function createApplicationFiles(
     offsetFromRoot: offsetFromRoot(options.appProjectRoot),
     appTests,
     inSourceVitestTests: getInSourceVitestTestsTemplate(appTests),
+    style: options.style === 'tailwind' ? 'css' : options.style,
+    hasStyleFile,
   };
 
   if (options.bundler === 'vite') {
@@ -177,7 +180,7 @@ export async function createApplicationFiles(
 
   if (options.js) {
     toJS(host, {
-      useJsx: options.bundler === 'vite',
+      useJsx: options.bundler === 'vite' || options.bundler === 'rspack',
     });
   }
 
@@ -204,7 +207,13 @@ function createNxWebpackPluginOptions(
     ),
     index: './src/index.html',
     baseHref: '/',
-    main: maybeJs(options, `./src/main.tsx`),
+    main: maybeJs(
+      {
+        js: options.js,
+        useJsx: options.bundler === 'vite' || options.bundler === 'rspack',
+      },
+      `./src/main.tsx`
+    ),
     tsConfig: './tsconfig.app.json',
     assets: ['./src/favicon.ico', './src/assets'],
     styles:

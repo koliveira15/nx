@@ -3,6 +3,7 @@ export * from './lib/ci-providers/azure-devops';
 export * from './lib/ci-providers/bitbucket';
 export * from './lib/ci-providers/github';
 export * from './lib/ci-providers/gitlab';
+export * from './lib/ci-providers/google-cloud';
 export * from './lib/ci-providers/jenkins';
 export * from './lib/ci-providers/travis-ci';
 
@@ -11,6 +12,7 @@ export * from './lib/customers/7eleven';
 export * from './lib/customers/adidas';
 export * from './lib/customers/adobe';
 export * from './lib/customers/american-airlines';
+export * from './lib/customers/amplify';
 export * from './lib/customers/aws';
 export * from './lib/customers/bill';
 export * from './lib/customers/bloomberg';
@@ -75,6 +77,7 @@ export * from './lib/editors/visual-studio-code';
 
 // OTHERS
 export * from './lib/monorepo-world';
+export * from './lib/others/amazon-s3';
 
 // PODCASTS
 export * from './lib/podcasts/amazon-music';

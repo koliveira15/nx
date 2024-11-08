@@ -11,8 +11,8 @@ import {
 import { join } from 'path';
 import { format, resolveConfig } from 'prettier';
 import { CommandModule } from 'yargs';
+import { stripVTControlCharacters } from 'node:util';
 
-const stripAnsi = require('strip-ansi');
 const importFresh = require('import-fresh');
 
 export function sortAlphabeticallyFunction(a: string, b: string): number {
@@ -45,7 +45,10 @@ export async function generateMarkdownFile(
   const filePath = join(outputDirectory, `${templateObject.name}.md`);
   outputFileSync(
     filePath,
-    await formatWithPrettier(filePath, stripAnsi(templateObject.template))
+    await formatWithPrettier(
+      filePath,
+      stripVTControlCharacters(templateObject.template)
+    )
   );
 }
 
@@ -134,6 +137,9 @@ export function formatDescription(
 ) {
   if (!deprecated) {
     return description;
+  }
+  if (!description) {
+    return `${bold('Deprecated:')} ${deprecated}`;
   }
   return deprecated === true
     ? `${bold('Deprecated:')} ${description}`
@@ -274,6 +280,14 @@ export function generateOptionsMarkdown(
             /"/g,
             ''
           )}\`)`;
+        }
+        if (
+          (option.name === 'version' &&
+            option.description === 'Show version number') ||
+          (option.name === 'help' && option.description === 'Show help')
+        ) {
+          // Add . to the end of the built-in description for consistency with our other descriptions
+          description = `${description}.`;
         }
         items.push({ name, type, description });
       });

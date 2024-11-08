@@ -28,19 +28,21 @@ export declare class ImportResult {
 
 export declare class NxCache {
   cacheDirectory: string
-  constructor(workspaceRoot: string, cachePath: string, dbConnection: ExternalObject<Connection>)
+  constructor(workspaceRoot: string, cachePath: string, dbConnection: ExternalObject<NxDbConnection>, linkTaskDetails?: boolean | undefined | null)
   get(hash: string): CachedResult | null
   put(hash: string, terminalOutput: string, outputs: Array<string>, code: number): void
   applyRemoteCacheResults(hash: string, result: CachedResult): void
   getTaskOutputsPath(hash: string): string
   copyFilesFromCache(cachedResult: CachedResult, outputs: Array<string>): void
   removeOldCacheRecords(): void
+  checkCacheFsInSync(): boolean
 }
 
 export declare class NxTaskHistory {
-  constructor(db: ExternalObject<Connection>)
+  constructor(db: ExternalObject<NxDbConnection>)
   recordTaskRuns(taskRuns: Array<TaskRun>): void
   getFlakyTasks(hashes: Array<string>): Array<string>
+  getEstimatedTaskTimings(targets: Array<TaskTarget>): Record<string, number>
 }
 
 export declare class RustPseudoTerminal {
@@ -54,7 +56,7 @@ export declare class RustPseudoTerminal {
 }
 
 export declare class TaskDetails {
-  constructor(db: ExternalObject<Connection>)
+  constructor(db: ExternalObject<NxDbConnection>)
   recordTaskDetails(tasks: Array<HashedTask>): void
 }
 
@@ -95,7 +97,9 @@ export interface CachedResult {
   outputsPath: string
 }
 
-export declare export function connectToNxDb(cacheDir: string, nxVersion: string): ExternalObject<Connection>
+export declare export function closeDbConnection(connection: ExternalObject<NxDbConnection>): void
+
+export declare export function connectToNxDb(cacheDir: string, nxVersion: string, dbName?: string | undefined | null): ExternalObject<NxDbConnection>
 
 export declare export function copy(src: string, dest: string): void
 
@@ -149,6 +153,8 @@ export declare export function getBinaryTarget(): string
  * This is used when hashing outputs
  */
 export declare export function getFilesForOutputs(directory: string, entries: Array<string>): Array<string>
+
+export declare export function getTransformableOutputs(outputs: Array<string>): Array<string>
 
 export declare export function hashArray(input: Array<string>): string
 
@@ -262,6 +268,8 @@ export interface UpdatedWorkspaceFiles {
   fileMap: FileMap
   externalReferences: NxWorkspaceFilesExternals
 }
+
+export declare export function validateOutputs(outputs: Array<string>): void
 
 export interface WatchEvent {
   path: string

@@ -124,8 +124,12 @@ export async function* moduleFederationSsrDevServerExecutor(
 
   // Set NX_MF_DEV_REMOTES for the Nx Runtime Library Control Plugin
   process.env.NX_MF_DEV_REMOTES = JSON.stringify([
-    ...(options.devRemotes ?? []),
-    project.name,
+    ...(
+      options.devRemotes.map((r) =>
+        typeof r === 'string' ? r : r.remoteName
+      ) ?? []
+    ).map((r) => r.replace(/-/g, '_')),
+    project.name.replace(/-/g, '_'),
   ]);
 
   const devRemotes = await startRemotes(
@@ -155,10 +159,9 @@ export async function* moduleFederationSsrDevServerExecutor(
       baseUrl: undefined,
     }));
 
-  return yield* combineAsyncIterables(
-    removeBaseUrlEmission(currIter),
-    ...devRemotes.map(removeBaseUrlEmission),
-    ...(staticRemotes ? [removeBaseUrlEmission(staticRemotes)] : []),
+  const combined = combineAsyncIterables(
+    removeBaseUrlEmission(staticRemotes),
+    ...(devRemotes ? devRemotes.map(removeBaseUrlEmission) : []),
     createAsyncIterable<{ success: true; baseUrl: string }>(
       async ({ next, done }) => {
         if (!options.isInitialHost) {
@@ -187,6 +190,7 @@ export async function* moduleFederationSsrDevServerExecutor(
               })
             )
           );
+          next({ success: true, baseUrl: `http://localhost:${options.port}` });
         } catch (error) {
           throw new Error(
             `Failed to start remotes. Check above for any errors.`,
@@ -200,6 +204,14 @@ export async function* moduleFederationSsrDevServerExecutor(
       }
     )
   );
+  let refs = 2 + (devRemotes?.length ?? 0);
+  for await (const result of combined) {
+    if (result.success === false) throw new Error('Remotes failed to start');
+    if (result.success) refs--;
+    if (refs === 0) break;
+  }
+
+  return yield* currIter;
 }
 
 export default moduleFederationSsrDevServerExecutor;

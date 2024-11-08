@@ -1,3 +1,19 @@
+import {
+  formatFiles,
+  GeneratorCallback,
+  output,
+  readJson,
+  readNxJson,
+  readProjectConfiguration,
+  runTasksInSerial,
+  Tree,
+} from '@nx/devkit';
+import {
+  getRootTsConfigFileName,
+  initGenerator as jsInitGenerator,
+} from '@nx/js';
+import { JestPluginOptions } from '../../plugins/plugin';
+import { getPresetExt } from '../../utils/config/config-file';
 import { jestInitGenerator } from '../init/init';
 import { checkForTestTarget } from './lib/check-for-test-target';
 import { createFiles } from './lib/create-files';
@@ -7,17 +23,6 @@ import { updateTsConfig } from './lib/update-tsconfig';
 import { updateVsCodeRecommendedExtensions } from './lib/update-vscode-recommended-extensions';
 import { updateWorkspace } from './lib/update-workspace';
 import { JestProjectSchema, NormalizedJestProjectSchema } from './schema';
-import {
-  formatFiles,
-  Tree,
-  GeneratorCallback,
-  readProjectConfiguration,
-  readNxJson,
-  runTasksInSerial,
-} from '@nx/devkit';
-import { initGenerator as jsInitGenerator } from '@nx/js';
-import { JestPluginOptions } from '../../plugins/plugin';
-import { getPresetExt } from '../../utils/config/config-file';
 
 const schemaDefaults = {
   setupFile: 'none',

@@ -21,12 +21,12 @@ export const metadata: Metadata = {
         type: 'image/jpeg',
       },
     ],
-    siteName: 'NxDev',
+    siteName: 'Nx',
     type: 'website',
   },
 };
 async function getBlogs() {
-  return await blogApi.getBlogs();
+  return await blogApi.getBlogs((p) => !!p.published);
 }
 
 async function getBlogTags() {

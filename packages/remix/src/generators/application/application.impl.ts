@@ -4,19 +4,26 @@ import {
   formatFiles,
   generateFiles,
   GeneratorCallback,
-  getPackageManagerCommand,
   joinPathFragments,
   offsetFromRoot,
   readJson,
   readProjectConfiguration,
   runTasksInSerial,
-  stripIndents,
-  toJS,
   Tree,
   updateJson,
   updateProjectConfiguration,
+  visitNotIgnoredFiles,
 } from '@nx/devkit';
+import { logShowProjectCommand } from '@nx/devkit/src/utils/log-show-project-command';
+import { initGenerator as jsInitGenerator } from '@nx/js';
 import { extractTsConfigBase } from '@nx/js/src/utils/typescript/create-ts-config';
+import { assertNotUsingTsSolutionSetup } from '@nx/js/src/utils/typescript/ts-solution-setup';
+import { dirname } from 'node:path';
+import {
+  createNxCloudOnboardingURLForWelcomeApp,
+  getNxCloudAppOnBoardingUrl,
+} from 'nx/src/nx-cloud/utilities/onboarding';
+import { updateJestTestMatch } from '../../utils/testing-config-utils';
 import {
   eslintVersion,
   getPackageVersion,
@@ -27,26 +34,24 @@ import {
   typescriptVersion,
   typesReactDomVersion,
   typesReactVersion,
+  viteVersion,
 } from '../../utils/versions';
-import { normalizeOptions, updateUnitTestConfig, addE2E } from './lib';
-import { NxRemixGeneratorSchema } from './schema';
-import { updateDependencies } from '../utils/update-dependencies';
 import initGenerator from '../init/init';
-import { initGenerator as jsInitGenerator } from '@nx/js';
-import { addBuildTargetDefaults } from '@nx/devkit/src/generators/target-defaults-utils';
-import { logShowProjectCommand } from '@nx/devkit/src/utils/log-show-project-command';
-import { updateJestTestMatch } from '../../utils/testing-config-utils';
+import { updateDependencies } from '../utils/update-dependencies';
 import {
-  getNxCloudAppOnBoardingUrl,
-  createNxCloudOnboardingURLForWelcomeApp,
-} from 'nx/src/nx-cloud/utilities/onboarding';
+  addE2E,
+  normalizeOptions,
+  updateUnitTestConfig,
+  addViteTempFilesToGitIgnore,
+} from './lib';
+import { NxRemixGeneratorSchema } from './schema';
 
 export function remixApplicationGenerator(
   tree: Tree,
   options: NxRemixGeneratorSchema
 ) {
   return remixApplicationGeneratorInternal(tree, {
-    addPlugin: false,
+    addPlugin: true,
     ...options,
   });
 }
@@ -55,63 +60,29 @@ export async function remixApplicationGeneratorInternal(
   tree: Tree,
   _options: NxRemixGeneratorSchema
 ) {
+  assertNotUsingTsSolutionSetup(tree, 'remix', 'application');
+
   const options = await normalizeOptions(tree, _options);
+  if (!options.addPlugin) {
+    throw new Error(
+      `To generate a new Remix Vite application, you must use Inference Plugins. Check you do not have NX_ADD_PLUGINS=false or useInferencePlugins: false in your nx.json.`
+    );
+  }
+
   const tasks: GeneratorCallback[] = [
     await initGenerator(tree, {
       skipFormat: true,
-      addPlugin: options.addPlugin,
+      addPlugin: true,
     }),
     await jsInitGenerator(tree, { skipFormat: true }),
   ];
-
-  addBuildTargetDefaults(tree, '@nx/remix:build');
 
   addProjectConfiguration(tree, options.projectName, {
     root: options.projectRoot,
     sourceRoot: `${options.projectRoot}`,
     projectType: 'application',
     tags: options.parsedTags,
-    targets: !options.addPlugin
-      ? {
-          build: {
-            executor: '@nx/remix:build',
-            outputs: ['{options.outputPath}'],
-            options: {
-              outputPath: joinPathFragments('dist', options.projectRoot),
-            },
-          },
-          serve: {
-            executor: `@nx/remix:serve`,
-            options: {
-              command: `${
-                getPackageManagerCommand().exec
-              } remix-serve build/index.js`,
-              manual: true,
-              port: 4200,
-            },
-          },
-          start: {
-            dependsOn: ['build'],
-            command: `remix-serve build/index.js`,
-            options: {
-              cwd: options.projectRoot,
-            },
-          },
-          ['serve-static']: {
-            dependsOn: ['build'],
-            command: `remix-serve build/index.js`,
-            options: {
-              cwd: options.projectRoot,
-            },
-          },
-          typecheck: {
-            command: `tsc --project tsconfig.app.json`,
-            options: {
-              cwd: options.projectRoot,
-            },
-          },
-        }
-      : {},
+    targets: {},
   });
 
   const installTask = updateDependencies(tree);
@@ -138,6 +109,7 @@ export async function remixApplicationGeneratorInternal(
     typesReactDomVersion,
     eslintVersion,
     typescriptVersion,
+    viteVersion,
   };
 
   generateFiles(
@@ -182,7 +154,7 @@ export async function remixApplicationGeneratorInternal(
         skipFormat: true,
         testEnvironment: 'jsdom',
         skipViteConfig: true,
-        addPlugin: options.addPlugin,
+        addPlugin: true,
       });
       createOrEditViteConfig(
         tree,
@@ -212,7 +184,7 @@ export async function remixApplicationGeneratorInternal(
         skipSerializers: false,
         skipPackageJson: false,
         skipFormat: true,
-        addPlugin: options.addPlugin,
+        addPlugin: true,
       });
       const projectConfig = readProjectConfiguration(tree, options.projectName);
       if (projectConfig.targets['test']?.options) {
@@ -241,6 +213,9 @@ export async function remixApplicationGeneratorInternal(
       '@nx/eslint',
       getPackageVersion(tree, 'nx')
     );
+    const { addIgnoresToLintConfig } = await import(
+      '@nx/eslint/src/generators/utils/eslint-file'
+    );
     const eslintTask = await lintProjectGenerator(tree, {
       linter: options.linter,
       project: options.projectName,
@@ -254,15 +229,10 @@ export async function remixApplicationGeneratorInternal(
     });
     tasks.push(eslintTask);
 
-    tree.write(
-      joinPathFragments(options.projectRoot, '.eslintignore'),
-      stripIndents`build
-    public/build`
-    );
-  }
-
-  if (options.js) {
-    toJS(tree);
+    addIgnoresToLintConfig(tree, options.projectRoot, [
+      'build',
+      'public/build',
+    ]);
   }
 
   if (options.rootProject && tree.exists('tsconfig.base.json')) {
@@ -319,6 +289,53 @@ export default {...nxPreset};
 
   tasks.push(await addE2E(tree, options));
 
+  // If the project package.json uses type module, and the project uses flat eslint config, we need to make sure the eslint config uses an explicit .cjs extension
+  // TODO: This could be re-evaluated once we support ESM in eslint configs
+  if (
+    tree.exists(joinPathFragments(options.projectRoot, 'package.json')) &&
+    tree.exists(joinPathFragments(options.projectRoot, 'eslint.config.js'))
+  ) {
+    const pkgJson = readJson(
+      tree,
+      joinPathFragments(options.projectRoot, 'package.json')
+    );
+    if (pkgJson.type === 'module') {
+      tree.rename(
+        joinPathFragments(options.projectRoot, 'eslint.config.js'),
+        joinPathFragments(options.projectRoot, 'eslint.config.cjs')
+      );
+      visitNotIgnoredFiles(tree, options.projectRoot, (file) => {
+        if (file.endsWith('eslint.config.js')) {
+          // Replace any extends on the eslint config to use the .cjs extension
+          const content = tree.read(file).toString();
+          if (content.includes('eslint.config')) {
+            tree.write(
+              file,
+              content
+                .replace(/eslint\.config'/g, `eslint.config.cjs'`)
+                .replace(/eslint\.config"/g, `eslint.config.cjs"`)
+                .replace(/eslint\.config\.js/g, `eslint.config.cjs`)
+            );
+          }
+
+          // If there is no sibling package.json with type commonjs, we need to rename the .js files to .cjs
+          const siblingPackageJsonPath = joinPathFragments(
+            dirname(file),
+            'package.json'
+          );
+          if (tree.exists(siblingPackageJsonPath)) {
+            const siblingPkgJson = readJson(tree, siblingPackageJsonPath);
+            if (siblingPkgJson.type === 'module') {
+              return;
+            }
+          }
+          tree.rename(file, file.replace('.js', '.cjs'));
+        }
+      });
+    }
+  }
+
+  addViteTempFilesToGitIgnore(tree);
   if (!options.skipFormat) {
     await formatFiles(tree);
   }

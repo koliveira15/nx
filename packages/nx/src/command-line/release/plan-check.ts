@@ -7,7 +7,7 @@ import {
   splitArgsIntoNxArgsAndOverrides,
 } from '../../utils/command-line-utils';
 import { output } from '../../utils/output';
-import { handleErrors } from '../../utils/params';
+import { handleErrors } from '../../utils/handle-errors';
 import { PlanCheckOptions, PlanOptions } from './command-object';
 import {
   createNxReleaseConfig,
@@ -76,10 +76,11 @@ export function createAPI(overrideReleaseConfig: NxReleaseConfiguration) {
     }
 
     const rawVersionPlans = await readRawVersionPlans();
-    setResolvedVersionPlansOnGroups(
+    await setResolvedVersionPlansOnGroups(
       rawVersionPlans,
       releaseGroups,
-      Object.keys(projectGraph.nodes)
+      Object.keys(projectGraph.nodes),
+      args.verbose
     );
 
     // Resolve the final values for base, head etc to use when resolving the changes to consider

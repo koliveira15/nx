@@ -344,7 +344,7 @@ And make sure you pull the latest changes locally:
 git pull
 ```
 
-You should now have an `nxCloudAccessToken` property specified in the `nx.json` file.
+You should now have an `nxCloudId` property specified in the `nx.json` file.
 
 ### Create a CI Workflow {% highlightColor="green" %}
 
@@ -421,8 +421,5 @@ url="/reference/nxignore" /%}
 
 {% card title="Nx and Turbo" description="Read about how Nx compares to Turborepo" url="
 /concepts/turbo-and-nx" /%}
-
-{% card title="Integrated Repos vs Package-Based Repos" description="Learn about two styles of monorepos." url="
-/concepts/integrated-vs-package-based" /%}
 
 {% /cards %}

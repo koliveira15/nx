@@ -1,10 +1,10 @@
 import { prompt } from 'enquirer';
-import { removeSync } from 'fs-extra';
+import { rmSync } from 'node:fs';
 import { NxReleaseConfiguration, readNxJson } from '../../config/nx-json';
 import { createProjectFileMapUsingProjectGraph } from '../../project-graph/file-map-utils';
 import { createProjectGraphAsync } from '../../project-graph/project-graph';
 import { output } from '../../utils/output';
-import { handleErrors } from '../../utils/params';
+import { handleErrors } from '../../utils/handle-errors';
 import {
   createAPI as createReleaseChangelogAPI,
   shouldCreateGitHubRelease,
@@ -143,10 +143,11 @@ export function createAPI(overrideReleaseConfig: NxReleaseConfiguration) {
       process.exit(1);
     }
 
-    setResolvedVersionPlansOnGroups(
+    await setResolvedVersionPlansOnGroups(
       rawVersionPlans,
       releaseGroups,
-      Object.keys(projectGraph.nodes)
+      Object.keys(projectGraph.nodes),
+      args.verbose
     );
 
     const planFiles = new Set<string>();
@@ -161,7 +162,7 @@ export function createAPI(overrideReleaseConfig: NxReleaseConfiguration) {
         }
         group.resolvedVersionPlans.forEach((plan) => {
           if (!args.dryRun) {
-            removeSync(plan.absolutePath);
+            rmSync(plan.absolutePath, { recursive: true, force: true });
             if (args.verbose) {
               console.log(`Removing ${plan.relativePath}`);
             }
@@ -251,6 +252,9 @@ export function createAPI(overrideReleaseConfig: NxReleaseConfiguration) {
 
       latestCommit = await getCommitHash('HEAD');
       await createOrUpdateGithubRelease(
+        nxReleaseConfig.changelog.workspaceChangelog
+          ? nxReleaseConfig.changelog.workspaceChangelog.createRelease
+          : false,
         changelogResult.workspaceChangelog.releaseVersion,
         changelogResult.workspaceChangelog.contents,
         latestCommit,
@@ -296,6 +300,9 @@ export function createAPI(overrideReleaseConfig: NxReleaseConfiguration) {
           }
 
           await createOrUpdateGithubRelease(
+            releaseGroup.changelog
+              ? releaseGroup.changelog.createRelease
+              : false,
             changelog.releaseVersion,
             changelog.contents,
             latestCommit,
