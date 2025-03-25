@@ -5,7 +5,7 @@ import { writeFileSync } from 'fs';
 import { TaskHasher } from '../hasher/task-hasher';
 import runCommandsImpl from '../executors/run-commands/run-commands.impl';
 import { ForkedProcessTaskRunner } from './forked-process-task-runner';
-import { Cache, DbCache, getCache } from './cache';
+import { Cache, DbCache, dbCacheEnabled, getCache } from './cache';
 import { DefaultTasksRunnerOptions } from './default-tasks-runner';
 import { TaskStatus } from './tasks-runner';
 import {
@@ -230,18 +230,20 @@ export class TaskOrchestrator {
     task: Task;
     status: 'local-cache' | 'local-cache-kept-existing' | 'remote-cache';
   }> {
-    task.startTime = Date.now();
     const cachedResult = await this.cache.get(task);
     if (!cachedResult || cachedResult.code !== 0) return null;
 
     const outputs = task.outputs;
     const shouldCopyOutputsFromCache =
+      // No output files to restore
       !!outputs.length &&
+      // Remote caches are restored to output dirs when applied and using db cache
+      (!cachedResult.remote || !dbCacheEnabled(this.nxJson)) &&
+      // Output files have not been touched since last run
       (await this.shouldCopyOutputsFromCache(outputs, task.hash));
     if (shouldCopyOutputsFromCache) {
       await this.cache.copyFilesFromCache(task.hash, cachedResult, outputs);
     }
-    task.endTime = Date.now();
     const status = cachedResult.remote
       ? 'remote-cache'
       : shouldCopyOutputsFromCache
@@ -324,6 +326,7 @@ export class TaskOrchestrator {
     try {
       const results = await this.forkedProcessTaskRunner.forkProcessForBatch(
         batch,
+        this.projectGraph,
         this.taskGraph,
         env
       );
@@ -545,6 +548,10 @@ export class TaskOrchestrator {
 
   // region Lifecycle
   private async preRunSteps(tasks: Task[], metadata: TaskMetadata) {
+    const now = Date.now();
+    for (const task of tasks) {
+      task.startTime = now;
+    }
     await this.options.lifeCycle.startTasks(tasks, metadata);
   }
 
@@ -558,7 +565,9 @@ export class TaskOrchestrator {
     doNotSkipCache: boolean,
     { groupId }: { groupId: number }
   ) {
+    const now = Date.now();
     for (const task of tasks) {
+      task.endTime = now;
       await this.recordOutputsHash(task);
     }
 

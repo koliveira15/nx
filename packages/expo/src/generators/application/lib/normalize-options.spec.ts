@@ -28,17 +28,20 @@ describe('Normalize Options', () => {
       directory: 'my-app',
       displayName: 'MyApp',
       lowerCaseName: 'myapp',
-      name: 'my-app',
+      simpleName: 'my-app',
       parsedTags: [],
       projectName: 'my-app',
       linter: Linter.EsLint,
       e2eTestRunner: 'none',
+      importPath: '@proj/my-app',
       unitTestRunner: 'jest',
       skipFormat: false,
       js: true,
       rootProject: false,
       e2eProjectName: 'my-app-e2e',
       e2eProjectRoot: 'my-app-e2e',
+      isTsSolutionSetup: false,
+      useProjectJson: true,
     } as NormalizedSchema);
   });
 
@@ -59,17 +62,20 @@ describe('Normalize Options', () => {
       directory: 'myApp',
       displayName: 'MyApp',
       lowerCaseName: 'myapp',
-      name: 'myApp',
+      simpleName: 'myApp',
       parsedTags: [],
       projectName: 'myApp',
       linter: Linter.EsLint,
       e2eTestRunner: 'none',
+      importPath: '@proj/myApp',
       skipFormat: false,
       js: true,
       unitTestRunner: 'jest',
       rootProject: false,
       e2eProjectName: 'myApp-e2e',
       e2eProjectRoot: 'myApp-e2e',
+      isTsSolutionSetup: false,
+      useProjectJson: true,
     } as NormalizedSchema);
   });
 
@@ -91,10 +97,12 @@ describe('Normalize Options', () => {
       displayName: 'MyApp',
       lowerCaseName: 'myapp',
       name: 'my-app',
+      simpleName: 'my-app',
       directory: 'directory',
       parsedTags: [],
       projectName: 'my-app',
       e2eTestRunner: 'none',
+      importPath: '@proj/my-app',
       unitTestRunner: 'jest',
       linter: Linter.EsLint,
       skipFormat: false,
@@ -102,6 +110,8 @@ describe('Normalize Options', () => {
       rootProject: false,
       e2eProjectName: 'my-app-e2e',
       e2eProjectRoot: 'directory-e2e',
+      isTsSolutionSetup: false,
+      useProjectJson: true,
     } as NormalizedSchema);
   });
 
@@ -122,10 +132,11 @@ describe('Normalize Options', () => {
       directory: 'directory/my-app',
       displayName: 'MyApp',
       lowerCaseName: 'myapp',
-      name: 'my-app',
+      simpleName: 'my-app',
       parsedTags: [],
       projectName: 'my-app',
       e2eTestRunner: 'none',
+      importPath: '@proj/my-app',
       unitTestRunner: 'jest',
       linter: Linter.EsLint,
       skipFormat: false,
@@ -133,6 +144,8 @@ describe('Normalize Options', () => {
       rootProject: false,
       e2eProjectName: 'my-app-e2e',
       e2eProjectRoot: 'directory/my-app-e2e',
+      isTsSolutionSetup: false,
+      useProjectJson: true,
     } as NormalizedSchema);
   });
 
@@ -154,10 +167,11 @@ describe('Normalize Options', () => {
       className: 'MyApp',
       displayName: 'My App',
       lowerCaseName: 'myapp',
-      name: 'my-app',
+      simpleName: 'my-app',
       parsedTags: [],
       projectName: 'my-app',
       e2eTestRunner: 'none',
+      importPath: '@proj/my-app',
       unitTestRunner: 'jest',
       linter: Linter.EsLint,
       skipFormat: false,
@@ -165,6 +179,8 @@ describe('Normalize Options', () => {
       rootProject: false,
       e2eProjectName: 'my-app-e2e',
       e2eProjectRoot: 'my-app-e2e',
+      isTsSolutionSetup: false,
+      useProjectJson: true,
     } as NormalizedSchema);
   });
 });

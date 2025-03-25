@@ -13,6 +13,15 @@ export declare class ChildProcess {
   onOutput(callback: (message: string) => void): void
 }
 
+export declare class FileLock {
+  locked: boolean
+  constructor(lockFilePath: string)
+  unlock(): void
+  check(): boolean
+  wait(): Promise<void>
+  lock(): void
+}
+
 export declare class HashPlanner {
   constructor(nxJson: NxJson, projectGraph: ExternalObject<ProjectGraph>)
   getPlans(taskIds: Array<string>, taskGraph: TaskGraph): Record<string, string[]>
@@ -28,12 +37,13 @@ export declare class ImportResult {
 
 export declare class NxCache {
   cacheDirectory: string
-  constructor(workspaceRoot: string, cachePath: string, dbConnection: ExternalObject<NxDbConnection>, linkTaskDetails?: boolean | undefined | null)
+  constructor(workspaceRoot: string, cachePath: string, dbConnection: ExternalObject<NxDbConnection>, linkTaskDetails?: boolean | undefined | null, maxCacheSize?: number | undefined | null)
   get(hash: string): CachedResult | null
   put(hash: string, terminalOutput: string, outputs: Array<string>, code: number): void
-  applyRemoteCacheResults(hash: string, result: CachedResult): void
+  applyRemoteCacheResults(hash: string, result: CachedResult, outputs?: Array<string> | undefined | null): void
   getTaskOutputsPath(hash: string): string
-  copyFilesFromCache(cachedResult: CachedResult, outputs: Array<string>): void
+  getCacheSize(): number
+  copyFilesFromCache(cachedResult: CachedResult, outputs: Array<string>): number
   removeOldCacheRecords(): void
   checkCacheFsInSync(): boolean
 }
@@ -84,6 +94,14 @@ export declare class WorkspaceContext {
   constructor(workspaceRoot: string, cacheDir: string)
   getWorkspaceFiles(projectRootMap: Record<string, string>): NxWorkspaceFiles
   glob(globs: Array<string>, exclude?: Array<string> | undefined | null): Array<string>
+  /**
+   * Performs multiple glob pattern matches against workspace files in parallel
+   * @returns An array of arrays, where each inner array contains the file paths
+   * that matched the corresponding glob pattern in the input. The outer array maintains the same order
+   * as the input globs.
+   */
+  multiGlob(globs: Array<string>, exclude?: Array<string> | undefined | null): Array<Array<string>>
+  hashFilesMatchingGlobs(globGroups: Array<Array<string>>): Array<string>
   hashFilesMatchingGlob(globs: Array<string>, exclude?: Array<string> | undefined | null): string
   incrementalUpdate(updatedFiles: Array<string>, deletedFiles: Array<string>): Record<string, string>
   updateProjectFiles(projectRootMappings: ProjectRootMappings, projectFiles: ExternalObject<ProjectFiles>, globalFiles: ExternalObject<Array<FileData>>, updatedFiles: Record<string, string>, deletedFiles: Array<string>): UpdatedWorkspaceFiles
@@ -95,13 +113,14 @@ export interface CachedResult {
   code: number
   terminalOutput: string
   outputsPath: string
+  size?: number
 }
 
 export declare export function closeDbConnection(connection: ExternalObject<NxDbConnection>): void
 
 export declare export function connectToNxDb(cacheDir: string, nxVersion: string, dbName?: string | undefined | null): ExternalObject<NxDbConnection>
 
-export declare export function copy(src: string, dest: string): void
+export declare export function copy(src: string, dest: string): number
 
 export interface DepsOutputsInput {
   dependentTasksOutputFiles: string
@@ -148,6 +167,8 @@ export declare export function findImports(projectFileMap: Record<string, Array<
 
 export declare export function getBinaryTarget(): string
 
+export declare export function getDefaultMaxCacheSize(cachePath: string): number
+
 /**
  * Expands the given outputs into a list of existing files.
  * This is used when hashing outputs
@@ -156,7 +177,7 @@ export declare export function getFilesForOutputs(directory: string, entries: Ar
 
 export declare export function getTransformableOutputs(outputs: Array<string>): Array<string>
 
-export declare export function hashArray(input: Array<string>): string
+export declare export function hashArray(input: Array<string | undefined | null>): string
 
 export interface HashDetails {
   value: string

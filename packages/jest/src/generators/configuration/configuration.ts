@@ -1,17 +1,15 @@
 import {
   formatFiles,
   GeneratorCallback,
-  output,
-  readJson,
+  logger,
   readNxJson,
   readProjectConfiguration,
   runTasksInSerial,
   Tree,
+  updateNxJson,
 } from '@nx/devkit';
-import {
-  getRootTsConfigFileName,
-  initGenerator as jsInitGenerator,
-} from '@nx/js';
+import { initGenerator as jsInitGenerator } from '@nx/js';
+import { isUsingTsSolutionSetup } from '@nx/js/src/utils/typescript/ts-solution-setup';
 import { JestPluginOptions } from '../../plugins/plugin';
 import { getPresetExt } from '../../utils/config/config-file';
 import { jestInitGenerator } from '../init/init';
@@ -74,6 +72,7 @@ function normalizeOptions(
     ...schemaDefaults,
     ...options,
     rootProject: project.root === '.' || project.root === '',
+    isTsSolutionSetup: isUsingTsSolutionSetup(tree),
   };
 }
 
@@ -115,8 +114,25 @@ export async function configurationGeneratorInternal(
       );
     }
   });
+
   if (!hasPlugin || options.addExplicitTargets) {
     updateWorkspace(tree, options);
+  }
+
+  if (options.isTsSolutionSetup) {
+    ignoreTestOutput(tree);
+
+    // in the TS solution setup, the test target depends on the build outputs
+    // so we need to setup the task pipeline accordingly
+    const nxJson = readNxJson(tree);
+    nxJson.targetDefaults ??= {};
+    nxJson.targetDefaults[options.targetName] ??= {};
+    nxJson.targetDefaults[options.targetName].dependsOn ??= [];
+    nxJson.targetDefaults[options.targetName].dependsOn.push('^build');
+    nxJson.targetDefaults[options.targetName].dependsOn = Array.from(
+      new Set(nxJson.targetDefaults[options.targetName].dependsOn)
+    );
+    updateNxJson(tree, nxJson);
   }
 
   if (!schema.skipFormat) {
@@ -124,6 +140,20 @@ export async function configurationGeneratorInternal(
   }
 
   return runTasksInSerial(...tasks);
+}
+
+function ignoreTestOutput(tree: Tree): void {
+  if (!tree.exists('.gitignore')) {
+    logger.warn(`Couldn't find a root .gitignore file to update.`);
+  }
+
+  let content = tree.read('.gitignore', 'utf-8');
+  if (/^test-output$/gm.test(content)) {
+    return;
+  }
+
+  content = `${content}\ntest-output\n`;
+  tree.write('.gitignore', content);
 }
 
 export default configurationGenerator;

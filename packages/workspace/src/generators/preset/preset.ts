@@ -34,8 +34,10 @@ async function createPreset(tree: Tree, options: Schema) {
       standalone: options.standaloneApi,
       routing: options.routing,
       e2eTestRunner: options.e2eTestRunner ?? 'playwright',
+      unitTestRunner: options.unitTestRunner,
       bundler: options.bundler,
       ssr: options.ssr,
+      serverRouting: options.serverRouting,
       prefix: options.prefix,
       nxCloudToken: options.nxCloudToken,
     });
@@ -53,8 +55,10 @@ async function createPreset(tree: Tree, options: Schema) {
       rootProject: true,
       standalone: options.standaloneApi,
       e2eTestRunner: options.e2eTestRunner ?? 'playwright',
+      unitTestRunner: options.unitTestRunner,
       bundler: options.bundler,
       ssr: options.ssr,
+      serverRouting: options.serverRouting,
       prefix: options.prefix,
       nxCloudToken: options.nxCloudToken,
     });
@@ -69,12 +73,22 @@ async function createPreset(tree: Tree, options: Schema) {
       linter: options.linter,
       bundler: options.bundler ?? 'webpack',
       e2eTestRunner: options.e2eTestRunner ?? 'playwright',
+      unitTestRunner:
+        options.unitTestRunner ??
+        (options.bundler === 'vite' ? 'vitest' : 'jest'),
       addPlugin,
+      routing: options.routing,
+      useReactRouter: options.useReactRouter,
       nxCloudToken: options.nxCloudToken,
+      useTsSolution: options.workspaces,
+      formatter: options.formatter,
+      useProjectJson: options.useProjectJson,
     });
   } else if (options.preset === Preset.ReactStandalone) {
     const { applicationGenerator: reactApplicationGenerator } = require('@nx' +
       '/react');
+
+    const bundler = options.bundler ?? 'vite';
 
     return reactApplicationGenerator(tree, {
       name: options.name,
@@ -82,38 +96,15 @@ async function createPreset(tree: Tree, options: Schema) {
       style: options.style,
       linter: options.linter,
       rootProject: true,
-      bundler: options.bundler ?? 'vite',
+      bundler,
+      routing: options.routing,
+      useReactRouter: options.useReactRouter,
       e2eTestRunner: options.e2eTestRunner ?? 'playwright',
-      unitTestRunner: options.bundler === 'vite' ? 'vitest' : 'jest',
+      unitTestRunner:
+        options.unitTestRunner ?? (bundler === 'vite' ? 'vitest' : 'jest'),
       addPlugin,
       nxCloudToken: options.nxCloudToken,
-    });
-  } else if (options.preset === Preset.RemixMonorepo) {
-    const { applicationGenerator: remixApplicationGenerator } = require('@nx' +
-      '/remix/generators');
-
-    return remixApplicationGenerator(tree, {
-      name: options.name,
-      directory: join('apps', options.name),
-      linter: options.linter,
-      e2eTestRunner: options.e2eTestRunner ?? 'playwright',
-      unitTestRunner: 'vitest',
-      addPlugin,
-      nxCloudToken: options.nxCloudToken,
-    });
-  } else if (options.preset === Preset.RemixStandalone) {
-    const { applicationGenerator: remixApplicationGenerator } = require('@nx' +
-      '/remix/generators');
-
-    return remixApplicationGenerator(tree, {
-      name: options.name,
-      directory: '.',
-      linter: options.linter,
-      e2eTestRunner: options.e2eTestRunner ?? 'playwright',
-      rootProject: true,
-      unitTestRunner: 'vitest',
-      addPlugin,
-      nxCloudToken: options.nxCloudToken,
+      formatter: options.formatter,
     });
   } else if (options.preset === Preset.VueMonorepo) {
     const { applicationGenerator: vueApplicationGenerator } = require('@nx' +
@@ -125,8 +116,12 @@ async function createPreset(tree: Tree, options: Schema) {
       style: options.style,
       linter: options.linter,
       e2eTestRunner: options.e2eTestRunner ?? 'playwright',
+      unitTestRunner: options.unitTestRunner,
       addPlugin,
       nxCloudToken: options.nxCloudToken,
+      useTsSolution: options.workspaces,
+      formatter: options.formatter,
+      useProjectJson: options.useProjectJson,
     });
   } else if (options.preset === Preset.VueStandalone) {
     const { applicationGenerator: vueApplicationGenerator } = require('@nx' +
@@ -139,7 +134,7 @@ async function createPreset(tree: Tree, options: Schema) {
       linter: options.linter,
       rootProject: true,
       e2eTestRunner: options.e2eTestRunner ?? 'playwright',
-      unitTestRunner: 'vitest',
+      unitTestRunner: options.unitTestRunner ?? 'vitest',
       addPlugin,
       nxCloudToken: options.nxCloudToken,
     });
@@ -153,8 +148,12 @@ async function createPreset(tree: Tree, options: Schema) {
       style: options.style,
       linter: options.linter,
       e2eTestRunner: options.e2eTestRunner ?? 'playwright',
+      unitTestRunner: options.unitTestRunner,
       addPlugin,
       nxCloudToken: options.nxCloudToken,
+      useTsSolution: options.workspaces,
+      formatter: options.formatter,
+      useProjectJson: options.useProjectJson,
     });
   } else if (options.preset === Preset.NuxtStandalone) {
     const { applicationGenerator: nuxtApplicationGenerator } = require('@nx' +
@@ -167,7 +166,7 @@ async function createPreset(tree: Tree, options: Schema) {
       linter: options.linter,
       rootProject: true,
       e2eTestRunner: options.e2eTestRunner ?? 'playwright',
-      unitTestRunner: 'vitest',
+      unitTestRunner: options.unitTestRunner ?? 'vitest',
       addPlugin,
       nxCloudToken: options.nxCloudToken,
     });
@@ -183,7 +182,11 @@ async function createPreset(tree: Tree, options: Schema) {
       appDir: options.nextAppDir,
       src: options.nextSrcDir,
       e2eTestRunner: options.e2eTestRunner ?? 'playwright',
+      unitTestRunner: options.unitTestRunner,
       addPlugin,
+      useTsSolution: options.workspaces,
+      formatter: options.formatter,
+      useProjectJson: options.useProjectJson,
     });
   } else if (options.preset === Preset.NextJsStandalone) {
     const { applicationGenerator: nextApplicationGenerator } = require('@nx' +
@@ -196,8 +199,10 @@ async function createPreset(tree: Tree, options: Schema) {
       appDir: options.nextAppDir,
       src: options.nextSrcDir,
       e2eTestRunner: options.e2eTestRunner ?? 'playwright',
+      unitTestRunner: options.unitTestRunner,
       rootProject: true,
       addPlugin,
+      formatter: options.formatter,
     });
   } else if (options.preset === Preset.WebComponents) {
     const { applicationGenerator: webApplicationGenerator } = require('@nx' +
@@ -222,7 +227,11 @@ async function createPreset(tree: Tree, options: Schema) {
       directory: join('apps', options.name),
       linter: options.linter,
       e2eTestRunner: options.e2eTestRunner ?? 'jest',
+      unitTestRunner: options.unitTestRunner,
       addPlugin,
+      useTsSolution: options.workspaces,
+      formatter: options.formatter,
+      useProjectJson: options.useProjectJson,
     });
   } else if (options.preset === Preset.Express) {
     const {
@@ -233,7 +242,11 @@ async function createPreset(tree: Tree, options: Schema) {
       directory: join('apps', options.name),
       linter: options.linter,
       e2eTestRunner: options.e2eTestRunner ?? 'jest',
+      unitTestRunner: options.unitTestRunner,
       addPlugin,
+      useTsSolution: options.workspaces,
+      formatter: options.formatter,
+      useProjectJson: options.useProjectJson,
     });
   } else if (options.preset === Preset.ReactNative) {
     const { reactNativeApplicationGenerator } = require('@nx' +
@@ -243,9 +256,13 @@ async function createPreset(tree: Tree, options: Schema) {
       directory: join('apps', options.name),
       linter: options.linter,
       e2eTestRunner: options.e2eTestRunner ?? 'detox',
+      unitTestRunner: options.unitTestRunner,
       addPlugin,
       nxCloudToken: options.nxCloudToken,
       bundler: options.bundler ?? 'webpack',
+      useTsSolution: options.workspaces,
+      formatter: options.formatter,
+      useProjectJson: options.useProjectJson,
     });
   } else if (options.preset === Preset.Expo) {
     const { expoApplicationGenerator } = require('@nx' + '/expo');
@@ -254,16 +271,18 @@ async function createPreset(tree: Tree, options: Schema) {
       directory: join('apps', options.name),
       linter: options.linter,
       e2eTestRunner: options.e2eTestRunner ?? 'detox',
+      unitTestRunner: options.unitTestRunner,
       addPlugin,
       nxCloudToken: options.nxCloudToken,
+      useTsSolution: options.workspaces,
+      formatter: options.formatter,
+      useProjectJson: options.useProjectJson,
     });
   } else if (options.preset === Preset.TS) {
     const { initGenerator } = require('@nx' + '/js');
     return initGenerator(tree, {
       formatter: options.formatter,
-      addTsPlugin:
-        process.env.NX_ADD_PLUGINS !== 'false' &&
-        process.env.NX_ADD_TS_PLUGIN !== 'false',
+      addTsPlugin: process.env.NX_ADD_PLUGINS !== 'false' && options.workspaces,
     });
   } else if (options.preset === Preset.TsStandalone) {
     const { libraryGenerator } = require('@nx' + '/js');
@@ -291,6 +310,7 @@ async function createPreset(tree: Tree, options: Schema) {
       docker: options.docker,
       rootProject: true,
       e2eTestRunner: options.e2eTestRunner ?? 'jest',
+      unitTestRunner: options.unitTestRunner,
       addPlugin,
     });
   } else if (options.preset === Preset.NodeMonorepo) {
@@ -306,7 +326,11 @@ async function createPreset(tree: Tree, options: Schema) {
       docker: options.docker,
       rootProject: false,
       e2eTestRunner: options.e2eTestRunner ?? 'jest',
+      unitTestRunner: options.unitTestRunner,
       addPlugin,
+      useTsSolution: options.workspaces,
+      formatter: options.formatter,
+      useProjectJson: options.useProjectJson,
     });
   } else {
     throw new Error(`Invalid preset ${options.preset}`);

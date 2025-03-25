@@ -18,6 +18,7 @@ Nx.json configuration
 
 ### Properties
 
+- [$schema](../../devkit/documents/NxJsonConfiguration#$schema): string
 - [affected](../../devkit/documents/NxJsonConfiguration#affected): NxAffectedConfig
 - [cacheDirectory](../../devkit/documents/NxJsonConfiguration#cachedirectory): string
 - [cli](../../devkit/documents/NxJsonConfiguration#cli): Object
@@ -27,6 +28,7 @@ Nx.json configuration
 - [generators](../../devkit/documents/NxJsonConfiguration#generators): Object
 - [implicitDependencies](../../devkit/documents/NxJsonConfiguration#implicitdependencies): ImplicitDependencyEntry<T>
 - [installation](../../devkit/documents/NxJsonConfiguration#installation): NxInstallationConfiguration
+- [maxCacheSize](../../devkit/documents/NxJsonConfiguration#maxcachesize): string
 - [namedInputs](../../devkit/documents/NxJsonConfiguration#namedinputs): Object
 - [neverConnectToCloud](../../devkit/documents/NxJsonConfiguration#neverconnecttocloud): boolean
 - [nxCloudAccessToken](../../devkit/documents/NxJsonConfiguration#nxcloudaccesstoken): string
@@ -46,6 +48,12 @@ Nx.json configuration
 - [workspaceLayout](../../devkit/documents/NxJsonConfiguration#workspacelayout): Object
 
 ## Properties
+
+### $schema
+
+• `Optional` **$schema**: `string`
+
+---
 
 ### affected
 
@@ -152,6 +160,14 @@ use [namedInputs](../../devkit/documents/NxJsonConfiguration#namedinputs) instea
 Configures the Nx installation for a repo. Useful for maintaining a separate
 set of dependencies for Nx + Plugins compared to the base package.json, but also
 useful for workspaces that don't have a root package.json + node_modules.
+
+---
+
+### maxCacheSize
+
+• `Optional` **maxCacheSize**: `string`
+
+Sets the maximum size of the local cache. Accepts a number followed by a unit (e.g. 100MB). Accepted units are B, KB, MB, and GB.
 
 ---
 
@@ -264,7 +280,7 @@ Dependencies between different target names across all projects
 
 **`Deprecated`**
 
-Custom task runners will no longer be supported in Nx 21. Use Nx Cloud or Nx Powerpack instead.
+Custom task runners will be replaced by a new API starting with Nx 21. More info: https://nx.dev/deprecated/custom-tasks-runner
 Available Task Runners for Nx to use
 
 #### Index signature

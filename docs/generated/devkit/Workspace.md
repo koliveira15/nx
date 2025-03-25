@@ -16,6 +16,7 @@ use ProjectsConfigurations or NxJsonConfiguration
 
 ### Properties
 
+- [$schema](../../devkit/documents/Workspace#$schema): string
 - [affected](../../devkit/documents/Workspace#affected): NxAffectedConfig
 - [cacheDirectory](../../devkit/documents/Workspace#cachedirectory): string
 - [cli](../../devkit/documents/Workspace#cli): Object
@@ -25,6 +26,7 @@ use ProjectsConfigurations or NxJsonConfiguration
 - [generators](../../devkit/documents/Workspace#generators): Object
 - [implicitDependencies](../../devkit/documents/Workspace#implicitdependencies): ImplicitDependencyEntry<string[] | "\*">
 - [installation](../../devkit/documents/Workspace#installation): NxInstallationConfiguration
+- [maxCacheSize](../../devkit/documents/Workspace#maxcachesize): string
 - [namedInputs](../../devkit/documents/Workspace#namedinputs): Object
 - [neverConnectToCloud](../../devkit/documents/Workspace#neverconnecttocloud): boolean
 - [nxCloudAccessToken](../../devkit/documents/Workspace#nxcloudaccesstoken): string
@@ -46,6 +48,16 @@ use ProjectsConfigurations or NxJsonConfiguration
 - [workspaceLayout](../../devkit/documents/Workspace#workspacelayout): Object
 
 ## Properties
+
+### $schema
+
+• `Optional` **$schema**: `string`
+
+#### Inherited from
+
+[NxJsonConfiguration](../../devkit/documents/NxJsonConfiguration).[$schema](../../devkit/documents/NxJsonConfiguration#$schema)
+
+---
 
 ### affected
 
@@ -188,6 +200,18 @@ useful for workspaces that don't have a root package.json + node_modules.
 #### Inherited from
 
 [NxJsonConfiguration](../../devkit/documents/NxJsonConfiguration).[installation](../../devkit/documents/NxJsonConfiguration#installation)
+
+---
+
+### maxCacheSize
+
+• `Optional` **maxCacheSize**: `string`
+
+Sets the maximum size of the local cache. Accepts a number followed by a unit (e.g. 100MB). Accepted units are B, KB, MB, and GB.
+
+#### Inherited from
+
+[NxJsonConfiguration](../../devkit/documents/NxJsonConfiguration).[maxCacheSize](../../devkit/documents/NxJsonConfiguration#maxcachesize)
 
 ---
 
@@ -360,7 +384,7 @@ Dependencies between different target names across all projects
 
 **`Deprecated`**
 
-Custom task runners will no longer be supported in Nx 21. Use Nx Cloud or Nx Powerpack instead.
+Custom task runners will be replaced by a new API starting with Nx 21. More info: https://nx.dev/deprecated/custom-tasks-runner
 Available Task Runners for Nx to use
 
 #### Index signature

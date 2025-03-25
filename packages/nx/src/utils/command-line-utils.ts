@@ -6,6 +6,7 @@ import { NxJsonConfiguration } from '../config/nx-json';
 import { execSync } from 'child_process';
 import { ProjectGraph } from '../config/project-graph';
 import { workspaceRoot } from './workspace-root';
+import { readParallelFromArgsAndEnv } from '../command-line/yargs-utils/shared-options';
 
 export interface RawNxArgs extends NxArgs {
   prod?: boolean;
@@ -15,7 +16,7 @@ export interface NxArgs {
   targets?: string[];
   configuration?: string;
   /**
-   * @deprecated Custom task runners will no longer be supported in Nx 21. Use Nx Cloud or Nx Powerpack instead.
+   * @deprecated Custom task runners will be replaced by a new API starting with Nx 21. More info: https://nx.dev/deprecated/custom-tasks-runner
    */
   runner?: string;
   parallel?: number;
@@ -34,6 +35,7 @@ export interface NxArgs {
   select?: string;
   graph?: string | boolean;
   skipNxCache?: boolean;
+  skipRemoteCache?: boolean;
   outputStyle?: string;
   nxBail?: boolean;
   nxIgnoreCycles?: boolean;
@@ -181,7 +183,15 @@ export function splitArgsIntoNxArgsAndOverrides(
   }
 
   if (!nxArgs.skipNxCache) {
-    nxArgs.skipNxCache = process.env.NX_SKIP_NX_CACHE === 'true';
+    nxArgs.skipNxCache =
+      process.env.NX_SKIP_NX_CACHE === 'true' ||
+      process.env.NX_DISABLE_NX_CACHE === 'true';
+  }
+
+  if (!nxArgs.skipRemoteCache) {
+    nxArgs.skipRemoteCache =
+      process.env.NX_DISABLE_REMOTE_CACHE === 'true' ||
+      process.env.NX_SKIP_REMOTE_CACHE === 'true';
   }
 
   normalizeNxArgsRunner(nxArgs, nxJson, options);
@@ -189,27 +199,6 @@ export function splitArgsIntoNxArgsAndOverrides(
   nxArgs['parallel'] = readParallelFromArgsAndEnv(args);
 
   return { nxArgs, overrides } as any;
-}
-
-export function readParallelFromArgsAndEnv(args: { [k: string]: any }) {
-  if (args['parallel'] === 'false' || args['parallel'] === false) {
-    return 1;
-  } else if (
-    args['parallel'] === 'true' ||
-    args['parallel'] === true ||
-    args['parallel'] === '' ||
-    // dont require passing --parallel if NX_PARALLEL is set, but allow overriding it
-    (process.env.NX_PARALLEL && args['parallel'] === undefined)
-  ) {
-    return Number(
-      args['maxParallel'] ||
-        args['max-parallel'] ||
-        process.env.NX_PARALLEL ||
-        3
-    );
-  } else if (args['parallel'] !== undefined) {
-    return Number(args['parallel']);
-  }
 }
 
 function normalizeNxArgsRunner(
